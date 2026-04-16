@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 const app = express();
+// Railway requires listening on PORT env var
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -133,6 +134,11 @@ app.use((req, res, next) => {
 });
 
 // ==================== API ====================
+
+// Health check for Railway
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString(), version: '2.0' });
+});
 
 // Register: phone + password (auto-login for existing users)
 app.post('/api/register', (req, res) => {
@@ -296,7 +302,13 @@ app.get('/', (req, res) => {
 });
 
 console.log('Starting Save Chicks Backend v2.0...');
+console.log('PORT env:', process.env.PORT);
+console.log('Using port:', PORT);
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server on port ${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/admin (admin/admin123)`);
+}).on('error', (err) => {
+  console.error('Server error:', err);
+  process.exit(1);
 });
