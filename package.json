@@ -1,14 +1,13 @@
 {
   "name": "save-chicks-backend",
-  "version": "1.0.0",
-  "description": "拯救小鸡 - 后端API服务",
+  "version": "2.0.0",
+  "description": "save-chicks backend API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "sql.js": "^1.10.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "express-rate-limit": "^7.1.5"
