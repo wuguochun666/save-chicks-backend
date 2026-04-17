@@ -245,13 +245,14 @@ app.post('/api/admin/login', (req, res) => {
   if (!admin || !bcrypt.compareSync(password, admin.passwordHash))
     return res.json({ success: false, error: 'wrong credentials' });
   const token = crypto.randomBytes(24).toString('hex');
+  admin.token = token; // store token for subsequent requests
   res.json({ success: true, token, username: admin.username });
 });
 
 function requireAdmin(req, res, next) {
   const token = req.headers['x-admin-token'];
   if (!token) return res.json({ success: false, error: 'no token' });
-  const admin = data.admins.find(a => bcrypt.compareSync(token, a.passwordHash));
+  const admin = data.admins.find(a => a.token === token);
   if (!admin) return res.json({ success: false, error: 'unauthorized' });
   next();
 }
