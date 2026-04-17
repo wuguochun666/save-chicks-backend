@@ -13,7 +13,11 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-let data = { users: [], scores: {}, admins: [], tokens: {} };
+// Admin from env (Railway persistent) or fallback
+const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
+const ADMIN_HASH = process.env.ADMIN_HASH || bcrypt.hashSync(ADMIN_PASS, 10);
+let data = { users: [], scores: {}, admins: [{username:ADMIN_USER, passwordHash:ADMIN_HASH, token:''}], tokens: {} };
 
 function loadDB() {
   if (fs.existsSync(DB_FILE)) {
@@ -245,7 +249,9 @@ app.post('/api/admin/login', (req, res) => {
   if (!admin || !bcrypt.compareSync(password, admin.passwordHash))
     return res.json({ success: false, error: 'wrong credentials' });
   const token = crypto.randomBytes(24).toString('hex');
-  admin.token = token; // store token for subsequent requests
+  admin.token = token; // store token in memory
+  // persist token to db.json
+  try { require('fs').writeFileSync(require('path').join(__dirname, 'db.json'), JSON.stringify(data, null, 2)); } catch(e) {}
   res.json({ success: true, token, username: admin.username });
 });
 
