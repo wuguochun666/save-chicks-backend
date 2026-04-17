@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>拯救小鸡</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #fef9f0; color: #333; overflow: hidden; }
+    #app { width: 100%; height: 100dvh; display: flex; flex-direction: column; }
+    .screen { display: none; flex-direction: column; flex: 1; overflow: hidden; height: 100%; }
+    .screen.active { display: flex; }
+    header.map-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #4a3728; color: white; flex-shrink: 0; gap: 8px; }
+    header.map-header .btn-back { background: none; border: none; color: white; font-size: 1.2em; cursor: pointer; padding: 4px 8px; }
+    header.map-header h2 { font-size: 1.1em; color: white; flex: 1; text-align: center; }
+    .user-name-display { font-size: 0.8em; color: #ffd700; background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 10px; }
+
+    /* 开场/归来页 */
+    #intro-screen, #return-screen { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; justify-content: center; align-items: center; text-align: center; padding: 40px 24px; }
+    #intro-screen h2, #return-screen h2 { font-size: 1.8em; margin-bottom: 20px; }
+    #intro-screen p, #return-screen p { font-size: 1.1em; line-height: 1.8; }
+    #return-chicks-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 20px 0; }
+    .return-chick { font-size: 2em; padding: 8px; border-radius: 12px; }
+    .return-chick.rescued { background: rgba(255,255,255,0.2); }
+    .return-chick.missing { opacity: 0.4; }
+
+    /* 主页 */
+    #home { justify-content: center; align-items: center; gap: 16px; padding: 24px; background: #fef9f0; }
+    #home h1 { font-size: 2em; color: #4a3728; }
+    #home .home-user { font-size: 0.9em; color: #888; margin-bottom: 12px; }
+    .home-btn { width: 200px; padding: 14px 20px; font-size: 1.1em; border: none; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); color: white; font-weight: bold; margin: 6px auto; display: block; }
+    .home-btn.secondary { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
+    .home-btn.rank { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: #4a3728; }
+    .home-btn.login { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); color: #4a3728; }
+
+    /* 关卡地图 */
+    #level-map { overflow-y: auto; background: #fef9f0; }
+    .level-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; justify-content: center; }
+    .level-node { width: 58px; height: 58px; border-radius: 50%; background: #4a90d9; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75em; cursor: pointer; border: 2px solid transparent; position: relative; }
+    .level-node.passed { background: #4CAF50; border-color: #388e3c; }
+    .level-node.locked { background: #ccc; cursor: not-allowed; }
+    .level-node.rescue-level { background: #ff9800; border-color: #e65100; }
+    .level-node.chick-rescued { background: #4CAF50; border-color: #ffd700; }
+    .level-node .lnum { font-size: 1.1em; font-weight: bold; }
+    .level-node .ltype { font-size: 0.6em; }
+    .level-node .lchick, .level-node .lbadge { font-size: 0.9em; }
+    .level-node .llock { position: absolute; top: -4px; right: -4px; font-size: 0.8em; }
+    .level-node .lstars { font-size: 0.55em; color: #ffd700; }
+    .level-node .lstar { font-size: 0.6em; color: #ffd700; }
+
+    /* 转场动画页 */
+    #entry-screen { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; justify-content: center; align-items: center; text-align: center; padding: 40px; }
+    #entry-content { font-size: 1.4em; line-height: 2; min-height: 100px; }
+    #entry-content p { margin: 8px 0; }
+    .blink-cursor { animation: blink 1s infinite; color: #ffd700; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+    .entry-progress { width: 80%; max-width: 300px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 24px auto 0; overflow: hidden; }
+    .entry-progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 3px; width: 0%; transition: width 0.1s; }
+    .entry-progress-text { font-size: 0.9em; color: rgba(255,255,255,0.7); margin-top: 8px; }
+    .entry-skip-btn { margin-top: 24px; font-size: 0.9em; color: rgba(255,255,255,0.5); background: none; border: none; cursor: pointer; }
+
+    /* 答题页 */
+    #quiz-screen { background: #fef9f0; }
+    .quiz-header-top { padding: 8px 12px; background: #4a3728; color: white; font-size: 0.9em; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .quiz-header-top .btn-back { background: none; border: none; color: white; font-size: 1em; cursor: pointer; }
+    .quiz-level-info { font-size: 0.85em; }
+    #quiz-article { flex-shrink: 0; max-height: 28%; overflow-y: auto; background: #fff8e1; border-bottom: 1px solid #ffe0b2; padding: 8px 12px; }
+    .article-text { font-size: 0.9em; color: #5d4037; line-height: 1.7; }
+    .read-btn { background: #ff9800; color: white; border: none; border-radius: 8px; padding: 4px 12px; font-size: 0.8em; cursor: pointer; margin-top: 6px; }
+    #quiz-dots { display: flex; gap: 4px; padding: 6px 12px; background: #fff; flex-shrink: 0; flex-wrap: wrap; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #e0e0e0; }
+    .dot.done { background: #4CAF50; }
+    .dot.current { background: #4a90d9; }
+    #quiz-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .qtext { font-size: 1em; margin-bottom: 12px; color: #333; line-height: 1.6; }
+    .option-btn { display: block; width: 100%; padding: 12px 16px; margin: 8px 0; border: 2px solid #e0e0e0; border-radius: 10px; background: white; font-size: 0.95em; text-align: left; cursor: pointer; }
+    .option-btn:hover { border-color: #4a90d9; background: #e3f2fd; }
+    .option-btn.correct { border-color: #4CAF50; background: #e8f5e9; color: #2e7d32; }
+    .option-btn.wrong { border-color: #f44336; background: #ffebee; color: #c62828; }
+
+    /* 结果页 */
+    #level-result { background: #fef9f0; justify-content: center; align-items: center; text-align: center; padding: 30px 24px; }
+    #result-stars { font-size: 3em; margin: 20px 0; }
+    #result-msg { font-size: 1.2em; color: #333; margin: 12px 0; }
+    #result-score { font-size: 0.95em; color: #888; }
+    .result-btn { padding: 12px 32px; font-size: 1.1em; border: none; border-radius: 12px; cursor: pointer; margin: 8px; background: linear-gradient(135deg, #4CAF50 0%, #66bb6a 100%); color: white; }
+
+    /* 小鸡花园 */
+    #garden { background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%); }
+    #garden-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .garden-title { text-align: center; font-size: 1.4em; color: #2e7d32; margin: 12px; }
+    .garden-hint { text-align: center; color: #388e3c; font-size: 0.9em; }
+    .garden-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 12px; }
+    .garden-chick { font-size: 2.2em; text-align: center; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.7); }
+    .garden-chick.rescued { cursor: pointer; }
+    .garden-chick.rescued:active { transform: scale(1.1); }
+    .garden-chick.missing { opacity: 0.3; }
+    .garden-progress { text-align: center; color: #2e7d32; font-size: 1em; padding: 12px; }
+
+    /* 词汇本 */
+    #vocab { background: #fef9f0; }
+    #vocab-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .vocab-title { text-align: center; font-size: 1.4em; color: #4a3728; margin: 12px; }
+    .vocab-list { display: flex; flex-direction: column; gap: 8px; }
+    .vocab-item { background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .vocab-word { font-size: 1.1em; font-weight: bold; color: #333; display: flex; align-items: center; gap: 8px; }
+    .vocab-word span { cursor: pointer; font-size: 1em; }
+    .vocab-meaning { font-size: 0.9em; color: #888; margin-top: 4px; }
+
+    /* 设置页 */
+    #settings { background: #fef9f0; }
+    #settings-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .settings-item { background: white; border-radius: 10px; padding: 14px 16px; margin: 8px 0; display: flex; align-items: center; justify-content: space-between; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .settings-item:active { background: #f5f5f5; }
+    .settings-item.danger { color: #f44336; }
+    #settings-content { padding-bottom: 80px; }
+
+    /* 底部导航 */
+    .bottom-nav { display: flex; background: #4a3728; flex-shrink: 0; border-top: 1px solid #3e2e20; }
+    .nav-btn { flex: 1; padding: 8px 4px; border: none; background: none; color: rgba(255,255,255,0.6); font-size: 0.7em; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .nav-btn.active { color: #ffd700; }
+    .nav-btn .nav-icon { font-size: 1.4em; }
+
+    /* 登录页 */
+    #login { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); justify-content: center; align-items: flex-start; padding: 40px 24px 20px; overflow-y: auto; }
+    .login-box { background: white; border-radius: 16px; padding: 30px 24px; width: 100%; max-width: 360px; }
+    .login-box h2 { text-align: center; color: #4a3728; margin-bottom: 20px; font-size: 1.4em; }
+    .login-box input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1em; margin-bottom: 10px; outline: none; }
+    .login-box input:focus { border-color: #667eea; }
+    .login-box .btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .login-box .btn-row input { flex: 1; margin-bottom: 0; }
+    .btn-code { padding: 12px 16px; background: #667eea; color: white; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; white-space: nowrap; }
+    .btn-primary { width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 1.1em; cursor: pointer; font-weight: bold; }
+    .login-msg { text-align: center; color: #f44336; font-size: 0.85em; margin-top: 10px; min-height: 20px; }
+    .login-tip { text-align: center; color: #888; font-size: 0.8em; margin-top: 12px; }
+    #login-name-group { display: block; }
+
+    /* 排行榜 */
+    #leaderboard { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
+    #leaderboard-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .rank-title { text-align: center; color: #4a3728; margin: 12px 0 20px; font-size: 1.3em; }
+    .rank-item { background: white; border-radius: 12px; padding: 12px 16px; margin: 8px 0; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .rank-item.top { background: linear-gradient(135deg, #fff9c4 0%, #fff176 100%); border: 2px solid #ffd700; }
+    .rank-medal { font-size: 1.5em; min-width: 36px; text-align: center; }
+    .rank-name { flex: 1; font-size: 1em; color: #333; }
+    .rank-stars { font-size: 0.9em; color: #ff9800; }
+    .rank-chicks { font-size: 0.9em; color: #4CAF50; min-width: 40px; text-align: right; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 登录/注册页 -->
+  <div   <div id="login" class="screen active">
+    <div class="login-box">
+      <h2>登录 / 注册</h2>
+      <input id="login-phone" type="tel" placeholder="请输入手机号" maxlength="11">
+      <input id="login-password" type="password" placeholder="请设置密码（至少6位）" minlength="6">
+      <div id="login-name-group">
+        <input id="login-name" type="text" placeholder="你的姓名" maxlength="20" required>
+        <input id="login-school" type="text" placeholder="学校" maxlength="30">
+        <input id="login-birthdate" type="date" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:0.9em;box-sizing:border-box;">
+      </div>
+      <button class="btn-primary" onclick="doLogin()">登录 / 注册</button>
+      <div id="login-msg" class="login-msg"></div>
+      <div class="login-tip">登录即表示同意用户协议<br>密码至少6位，老用户直接登录</div>
+    </div>
+  </div>
+
+  <!-- 开场动画页 -->
+  <div id="intro-screen" class="screen">
+    <div id="intro-content" onclick="finishIntro()"></div>
+  </div>
+
+  <!-- 归来提示页 -->
+  <div id="return-screen" class="screen">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>🐤 欢迎回来</h2>
+      <span style="width:50px"></span>
+    </header>
+    <div style="flex:1;overflow-y:auto;padding:16px;">
+      <div id="return-chicks-list"></div>
+      <div id="return-status" style="text-align:center;margin-top:12px;"></div>
+      <div style="text-align:center;margin-top:24px;">
+        <button class="home-btn" onclick="finishIntro()">开始闯关</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主页 -->
+  <div id="home" class="screen">
+    <h1>🐤 拯救小鸡</h1>
+    <p class="home-user">当前用户：<span class="user-name-display">未登录</span></p>
+    <button class="home-btn" onclick="Storage.isLoggedIn() ? (renderLevelMap(), showScreen('level-map')) : showLogin()">开始闯关</button>
+    <button class="home-btn rank" onclick="showLeaderboard()">排行榜</button>
+    <button class="home-btn secondary" onclick="renderGarden(); showScreen('garden')">小鸡花园</button>
+    <button class="home-btn secondary" onclick="renderVocab(); showScreen('vocab')">词汇本</button>
+    <button class="home-btn secondary" onclick="renderLevelMap(); showScreen('level-map')">关卡地图</button>
+    <button class="home-btn" id="nav-login-btn" onclick="showLogin()">登录 / 注册</button>
+  </div>
+
+  <!-- 关卡地图 -->
+  <div id="level-map" class="screen">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>关卡地图</h2>
+      <span class="user-name-display" style="min-width:50px"></span>
+    </header>
+    <div id="level-grid-container" style="flex:1;overflow-y:auto;padding:12px;"></div>
+  </div>
+
+  <!-- 转场动画页 -->
+  <div id="entry-screen" class="screen">
+    <div id="entry-content" style="flex:1;display:flex;align-items:center;justify-content:center;"></div>
+    <div class="entry-progress"><div id="entry-progress-fill" class="entry-progress-fill"></div></div>
+    <div id="entry-progress-text" class="entry-progress-text">0%</div>
+    <button class="entry-skip-btn" onclick="showScreen('quiz-screen'); renderQuestion();">跳过 →</button>
+  </div>
+
+  <!-- 答题页 -->
+  <div id="quiz-screen" class="screen">
+    <div class="quiz-header-top">
+      <button class="btn-back" onclick="if(confirm('确定退出答题？')) {showScreen('level-map')}">返回</button>
+      <span id="quiz-level-info"></span>
+      <button class="read-btn" onclick="readArticle()">朗读</button>
+    </div>
+    <div id="quiz-article"></div>
+    <div id="quiz-dots"></div>
+    <div id="quiz-content"></div>
+  </div>
+
+  <!-- 结果页 -->
+  <div id="level-result" class="screen">
+    <header class="map-header">
+      <button class="btn-back" style="visibility:hidden">返回</button>
+      <h2>闯关结果</h2>
+      <span style="width:50px"></span>
+    </header>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px;">
+      <div id="result-stars" style="font-size:3em;">⭐⭐⭐</div>
+      <div id="result-msg" style="font-size:1.2em;margin:12px 0;"></div>
+      <div id="result-score" style="font-size:0.95em;color:#888;"></div>
+      <div style="margin-top:24px;">
+        <button id="next-level-btn" class="result-btn" onclick="">下一关 →</button>
+        <button class="result-btn" style="background:#ff9800;" onclick="renderLevelMap(); showScreen('level-map')">返回地图</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 小鸡花园 -->
+  <div id="garden" class="screen">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>小鸡花园</h2>
+      <span class="user-name-display" style="min-width:50px"></span>
+    </header>
+    <div id="garden-content"></div>
+  </div>
+
+  <!-- 词汇本 -->
+  <div id="vocab" class="screen">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>词汇本</h2>
+      <span class="user-name-display" style="min-width:50px"></span>
+    </header>
+    <div id="vocab-content"></div>
+  </div>
+
+  <!-- 设置页 -->
+  <div id="settings" class="screen">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>设置</h2>
+      <span style="width:50px"></span>
+    </header>
+    <div id="settings-content">
+      <div class="settings-item" onclick="toggleSound()">
+        <span id="sound-toggle">音效：开</span>
+        <span>切换 →</span>
+      </div>
+      <div class="settings-item" onclick="showLeaderboard()">
+        <span>排行榜</span>
+        <span>查看 →</span>
+      </div>
+      <div class="settings-item" onclick="Storage.isLoggedIn() ? logoutUser() : showLogin()">
+        <span id="nav-login-btn2">账号管理</span>
+        <span>→</span>
+      </div>
+      <div class="settings-item danger" onclick="resetAll()">
+        <span>重置所有数据</span>
+        <span>清空 →</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 排行榜页 -->
+  <div id="leaderboard" class="screen">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>英雄榜</h2>
+      <span style="width:50px"></span>
+    </header>
+    <div id="leaderboard-content"></div>
+  </div>
+
+  <!-- 底部导航 -->
+  <nav class="bottom-nav">
+    <button class="nav-btn" onclick="renderLevelMap(); showScreen('level-map')">
+      <span class="nav-icon">🏠</span><span>首页</span>
+    </button>
+    <button class="nav-btn" onclick="renderGarden(); showScreen('garden')">
+      <span class="nav-icon">🐤</span><span>花园</span>
+    </button>
+    <button class="nav-btn" onclick="renderVocab(); showScreen('vocab')">
+      <span class="nav-icon">📖</span><span>词汇</span>
+    </button>
+    <button class="nav-btn" onclick="showLeaderboard()">
+      <span class="nav-icon">🏆</span><span>排行</span>
+    </button>
+    <button class="nav-btn" onclick="showSettings()">
+      <span class="nav-icon">⚙</span><span>设置</span>
+    </button>
+  </nav>
+
+</div>
+<script src="js/storage.js"></script>
+<script src="js/stories.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
