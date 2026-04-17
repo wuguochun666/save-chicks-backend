@@ -526,9 +526,7 @@ app.get('/admin', (req, res) => {
   res.set('Expires', '0');
   res.send(ADMIN_HTML);
 });
-app.get('/', (req, res) => {
-  res.json({ name: 'Save Chicks API', version: '2.0', note: 'phone + password auth' });
-});
+// Root served by express.static (public/index.html)
 
 console.log('Starting Save Chicks Backend v2.0...');
 console.log('PORT env:', process.env.PORT);
