@@ -232,6 +232,22 @@ app.post('/api/score', (req, res) => {
   res.json({ success: true, totalStars: r.totalStars, totalChicks: r.totalChicks });
 });
 
+// Reset progress (keep registration, only clear progress/score/chicks)
+app.post('/api/reset-progress', (req, res) => {
+  const userId = getUserIdFromReq(req);
+  if (!userId) return res.json({ success: false, error: 'not logged in' });
+  const user = data.users.find(u => u.id === userId);
+  if (!user) return res.json({ success: false, error: 'user not found' });
+  // Keep: phone, password, name, school, birthdate, createdAt
+  // Reset: starsPerLevel, totalStars, totalChicks, progress
+  user.starsPerLevel = Array(30).fill(0);
+  user.totalStars = 0;
+  user.totalChicks = 0;
+  user.progress = Array(30).fill(null).map(() => ({ passed: false, score: 0, stars: 0 }));
+  saveDB();
+  res.json({ success: true });
+});
+
 // Leaderboard
 app.get('/api/leaderboard', (req, res) => {
   const list = getTopScores(20);
