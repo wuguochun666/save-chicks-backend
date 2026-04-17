@@ -447,7 +447,7 @@ function loadOverview() {
       }
       var s = d.stats;
       document.getElementById('content').innerHTML =
-        '<button class="refresh-btn" onclick="loadTab('overview')">刷新数据</button>' +
+        '<button class="refresh-btn" onclick="loadTab(\"overview\")">刷新数据</button>' +
         '<div class="stat-cards">' +
           '<div class="stat-card"><div class="label">总用户数</div><div class="value">' + s.totalUsers + '</div><div class="sub">累计注册</div></div>' +
           '<div class="stat-card"><div class="label">总星星数</div><div class="value">' + s.totalStars + '</div><div class="sub">全局用户</div></div>' +
