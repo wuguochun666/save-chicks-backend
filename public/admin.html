@@ -134,30 +134,18 @@ function loadOverview() {
   fetch(API + '/api/admin/stats', {headers: ah()})
     .then(function(r){return r.json();})
     .then(function(d) {
-      if (!d.success) return;
+      if (!d.success || !d.stats) {
+        document.getElementById('content').innerHTML = '<div style="padding:40px;color:#999;text-align:center">加载失败: ' + (d.error||'') + '</div>';
+        return;
+      }
       var s = d.stats;
-      var maxC = Math.max.apply(null, s.weekTrend.map(function(w){return w.count;}).concat([1]));
-      var barHtml = s.weekTrend.map(function(w) {
-        var h = Math.round(w.count / maxC * 90) + 10;
-        return '<div class="bar" style="height:' + h + 'px" title="' + w.date + ': ' + w.count + '人"></div>';
-      }).join('');
-      if (!barHtml) barHtml = '<div style="padding:40px;color:#999;width:100%;text-align:center">近7天暂无数据</div>';
-
-      var distHtml = s.starDist.map(function(r) {
-        var pct = s.totalUsers > 0 ? ((r.count / s.totalUsers) * 100).toFixed(1) : '0';
-        return '<tr><td>' + r.bucket + '</td><td>' + r.count + '</td><td>' + pct + '%</td></tr>';
-      }).join('');
-
       document.getElementById('content').innerHTML =
-        '<button class="refresh-btn" onclick="loadTab(\'overview\')">刷新数据</button>' +
+        '<button class="refresh-btn" onclick="loadTab('overview')">刷新数据</button>' +
         '<div class="stat-cards">' +
           '<div class="stat-card"><div class="label">总用户数</div><div class="value">' + s.totalUsers + '</div><div class="sub">累计注册</div></div>' +
-          '<div class="stat-card"><div class="label">今日新增</div><div class="value">' + s.todayUsers + '</div><div class="sub">今天</div></div>' +
-          '<div class="stat-card"><div class="label">总星星数</div><div class="value">' + s.totalStars + '</div><div class="sub">全部用户</div></div>' +
-          '<div class="stat-card"><div class="label">总营救数</div><div class="value">' + s.totalChicks + '</div><div class="sub">全部用户</div></div>' +
-        '</div>' +
-        '<h3>近7天注册趋势</h3><div class="chart-bar">' + barHtml + '</div>' +
-        '<h3>用户星星分布</h3><table><thead><tr><th>档位</th><th>人数</th><th>占比</th></tr></thead><tbody>' + distHtml + '</tbody></table>';
+          '<div class="stat-card"><div class="label">总星星数</div><div class="value">' + s.totalStars + '</div><div class="sub">全局用户</div></div>' +
+          '<div class="stat-card"><div class="label">营救小鸡</div><div class="value">' + s.totalChicks + '</div><div class="sub">全局用户</div></div>' +
+        '</div>';
     });
 }
 
