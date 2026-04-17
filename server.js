@@ -303,13 +303,20 @@ app.get('/api/admin/leaderboard', requireAdmin, (req, res) => {
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0, etag: false }));
+
+// Read admin.html at startup and serve inline (bypass static cache)
+const ADMIN_HTML_PATH = path.join(__dirname, 'public', 'admin.html');
+let adminHtmlContent = '';
+try { adminHtmlContent = fs.readFileSync(ADMIN_HTML_PATH, 'utf8'); console.log('[ADMIN] Loaded admin.html, size:', adminHtmlContent.length); } catch(e) { console.log('[ADMIN] Failed to load:', e.message); }
 app.get('/admin', (req, res) => {
-  const filePath = path.join(__dirname, 'public', 'admin.html');
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) return res.status(500).send('admin.html not found');
-    res.set('Cache-Control', 'no-store');
-    res.send(data);
-  });
+  if (adminHtmlContent) {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.send(adminHtmlContent);
+  } else {
+    res.status(500).json({error: 'admin.html not found'});
+  }
 });
 app.get('/', (req, res) => {
   res.json({ name: 'Save Chicks API', version: '2.0', note: 'phone + password auth' });
