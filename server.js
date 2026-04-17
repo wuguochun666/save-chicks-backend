@@ -302,8 +302,15 @@ app.get('/api/admin/leaderboard', requireAdmin, (req, res) => {
 });
 
 // Static files
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0, etag: false }));
+app.get('/admin', (req, res) => {
+  const filePath = path.join(__dirname, 'public', 'admin.html');
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) return res.status(500).send('admin.html not found');
+    res.set('Cache-Control', 'no-store');
+    res.send(data);
+  });
+});
 app.get('/', (req, res) => {
   res.json({ name: 'Save Chicks API', version: '2.0', note: 'phone + password auth' });
 });
