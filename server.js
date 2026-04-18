@@ -442,7 +442,20 @@ h3{margin-bottom:12px;font-size:15px;color:#666}
   <div class="content" id="content"></div>
 </div>
 
+<p style="margin:8px 0;color:#e67e22;font-size:0.85em;">⚠️ 重置密码=设为123456 | 删除用户=清除所有数据</p>
 <script>
+function resetPwd(uid, phone) {
+  if (!confirm('确定重置该用户密码为 123456？')) return;
+  fetch(API+'/api/admin/reset-password',{method:'POST',headers:ah(),body:JSON.stringify({userId:uid,newPassword:'123456'})})
+    .then(r=>r.json()).then(d=>{alert(d.success?'密码已重置为123456':('错误:'+(d.error||'')));if(d.success)loadUsers(1);});
+}
+function delUser(uid, name) {
+  if (!confirm('确定删除用户 '+(name||'')+'？不可恢复！')) return;
+  fetch(API+'/api/admin/delete-user',{method:'POST',headers:ah(),body:JSON.stringify({userId:uid})})
+    .then(r=>r.json()).then(d=>{alert(d.success?'用户已删除':('错误:'+(d.error||'')));if(d.success)loadUsers(1);});
+}
+
+
 var API = location.origin;
 var token = localStorage.getItem('at') || '';
 var currentSearch = '';
@@ -501,7 +514,7 @@ function loadOverview() {
       }
       var s = d.stats;
       document.getElementById('content').innerHTML =
-        '<button class="refresh-btn" onclick="loadTab(\"overview\")">刷新数据</button>' +
+        '<button class="refresh-btn" onclick="loadTab('overview')">刷新数据</button>' +
         '<div class="stat-cards">' +
           '<div class="stat-card"><div class="label">总用户数</div><div class="value">' + s.totalUsers + '</div><div class="sub">累计注册</div></div>' +
           '<div class="stat-card"><div class="label">总星星数</div><div class="value">' + s.totalStars + '</div><div class="sub">全局用户</div></div>' +
@@ -516,7 +529,7 @@ function loadUsers(page) {
     .then(function(d) {
       if (!d.success) return;
       var rows = d.users.map(function(u) {
-        return '<tr><td>' + u.id + '</td><td>' + u.phone + '</td><td>' + u.name + '</td><td>' + u.school + '</td><td>' + u.birthdate + '</td><td><span class="badge b-star">⭐ ' + u.totalStars + '</span></td><td><span class="badge b-chick">🐥 ' + u.totalChicks + '</span></td><td>' + (u.created_at ? u.created_at.split('T')[0] : '-') + '</td></tr>';
+        return '<tr><td>' + u.id + '</td><td>' + u.phone + '</td><td>' + u.name + '</td><td>' + u.school + '</td><td>' + u.birthdate + '</td><td><span class="badge b-star">⭐ ' + u.totalStars + '</span></td><td><span class="badge b-chick">🐥 ' + u.totalChicks + '</span></td><td>' + (u.created_at ? u.created_at.split('T')[0] : '-') + '</td><td>'<button onclick=\"resetPwd(\'\'+u.id+'\',\'\'+(u.phone||'')+'\')\" style=\"padding:4px 10px;border-radius:4px;border:1px solid #1976d2;background:#e3f2fd;color:#1976d2;font-size:0.82em;cursor:pointer\">重置密码</button><button onclick=\"delUser(\'\'+u.id+'\',\'\'+(u.name||'')+'\')\" style=\"padding:4px 10px;border-radius:4px;border:1px solid #d32f2f2;background:#ffebee;color:#d32f2f2;font-size:0.82em;cursor:pointer;margin-left:4px\">删除</button>'</td></tr>';
       }).join('');
 
       var pages = '';
@@ -527,8 +540,8 @@ function loadUsers(page) {
       document.getElementById('content').innerHTML =
         '<div class="search-bar">' +
           '<input type="text" id="searchInput" placeholder="搜索：手机号 / 姓名 / 学校" value="' + (currentSearch || '') + '">' +
-          '<button onclick="currentSearch=document.getElementById(\\'searchInput\\').value;loadUsers(1);">搜索</button>' +
-          '<button class="b-reset" onclick="currentSearch=\\'\\';document.getElementById(\\'searchInput\\').value=\\'\\';loadUsers(1);">重置</button>' +
+          '<button onclick="currentSearch=document.getElementById(\'searchInput\').value;loadUsers(1);">搜索</button>' +
+          '<button class="b-reset" onclick="currentSearch=\'\';document.getElementById(\'searchInput\').value=\'\';loadUsers(1);">重置</button>' +
         '</div>' +
         '<table><thead><tr><th>ID</th><th>手机号</th><th>姓名</th><th>学校</th><th>生日</th><th>星星</th><th>小鸡</th><th>注册时间</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table>' +
         '<div class="pagination">' +
@@ -550,7 +563,7 @@ function loadLeaderboard() {
         return '<tr><td>' + medal + '</td><td>' + u.id + '</td><td>' + u.name + '</td><td>' + u.phone + '</td><td>' + u.school + '</td><td><span class="badge b-star">⭐ ' + u.totalStars + '</span></td><td><span class="badge b-chick">🐥 ' + u.totalChicks + '</span></td><td>' + (u.updated_at ? u.updated_at.replace('T',' ').slice(0,16) : '-') + '</td></tr>';
       }).join('');
       document.getElementById('content').innerHTML =
-        '<button class="refresh-btn" onclick="loadTab(\\'leaderboard\\')">刷新排行榜</button>' +
+        '<button class="refresh-btn" onclick="loadTab(\'leaderboard\')">刷新排行榜</button>' +
         '<table><thead><tr><th>排名</th><th>ID</th><th>姓名</th><th>手机号</th><th>学校</th><th>星星</th><th>小鸡</th><th>更新时间</th></tr></thead><tbody>' + rows + '</tbody></table>';
     });
 }
@@ -569,53 +582,6 @@ if (token) {
       }
     })
     .catch(function() { logout(); });
-}
-
-// Admin: Reset user password
-function resetPassword(userId, phone) {
-  var newPass = prompt('重置用户 ' + phone + ' 的密码\\n请输入新密码（至少6位）：');
-  if (!newPass || newPass.length < 6) {
-    alert('密码至少6位');
-    return;
-  }
-  fetch(API + '/api/admin/reset-password', {
-    method: 'POST',
-    headers: ah(),
-    body: JSON.stringify({ userId: userId, newPassword: newPass })
-  }).then(function(r){return r.json();})
-    .then(function(d) {
-      if (d.success) {
-        alert('密码重置成功！');
-      } else {
-        alert('重置失败：' + (d.error || '未知错误'));
-      }
-    })
-    .catch(function(e) {
-      alert('网络错误：' + e.message);
-    });
-}
-
-// Admin: Delete user
-function deleteUser(userId, phone) {
-  if (!confirm('确定要删除用户 ' + phone + ' 吗？\\n此操作不可恢复，用户的所有数据将被清空！')) {
-    return;
-  }
-  fetch(API + '/api/admin/delete-user', {
-    method: 'POST',
-    headers: ah(),
-    body: JSON.stringify({ userId: userId })
-  }).then(function(r){return r.json();})
-    .then(function(d) {
-      if (d.success) {
-        alert('用户删除成功！');
-        loadUsers(1); // Refresh user list
-      } else {
-        alert('删除失败：' + (d.error || '未知错误'));
-      }
-    })
-    .catch(function(e) {
-      alert('网络错误：' + e.message);
-    });
 }
 </script>
 </body>
