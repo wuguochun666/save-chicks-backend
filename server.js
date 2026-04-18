@@ -63,7 +63,15 @@ function maskName(name) {
   return name[0] + '*'.repeat(name.length - 2) + name[name.length - 1];
 }
 
-function calcChicks(totalStars) { return Math.min(Math.floor(totalStars / 3), 10); }
+function calcChicks(stars) {
+  // 与前端一致：RESCUE_LEVELS = [2,5,8,11,14,17,20,23,26,29]，每3关救1只
+  // 对应的starsPerLevel索引处有3星才算救回
+  const RESCUE = [2,5,8,11,14,17,20,23,26,29];
+  if (!Array.isArray(stars)) return 0;
+  let count = 0;
+  RESCUE.forEach(idx => { if (stars[idx] >= 3) count++; });
+  return Math.min(count, 10);
+}
 
 function calcTotalStars(userId) {
   const s = data.scores[userId];
@@ -78,7 +86,7 @@ function updateScore(userId, starsPerLevel) {
     if (!score.stars[i] || v > score.stars[i]) score.stars[i] = v;
   });
   score.totalStars = calcTotalStars(userId);
-  score.totalChicks = calcChicks(score.totalStars);
+  score.totalChicks = calcChicks(score.stars);
   score.updatedAt = new Date().toISOString();
   saveDB();
   return { totalStars: score.totalStars, totalChicks: score.totalChicks };
@@ -239,7 +247,10 @@ app.post('/api/reset-progress', (req, res) => {
   const user = data.users.find(u => u.id === userId);
   if (!user) return res.json({ success: false, error: 'user not found' });
   // Keep: phone, password, name, school, birthdate, createdAt
-  // Reset: starsPerLevel, totalStars, totalChicks, progress
+  // Reset: scores data (used by leaderboard), user progress
+  if (data.scores[userId]) {
+    data.scores[userId] = { stars: Array(30).fill(0), totalStars: 0, totalChicks: 0 };
+  }
   user.starsPerLevel = Array(30).fill(0);
   user.totalStars = 0;
   user.totalChicks = 0;
