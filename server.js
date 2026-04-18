@@ -328,6 +328,33 @@ app.get('/api/admin/leaderboard', requireAdmin, (req, res) => {
   }))});
 });
 
+// Admin: Reset user password
+app.post('/api/admin/reset-password', requireAdmin, (req, res) => {
+  const { userId, newPassword } = req.body || {};
+  if (!userId || !newPassword) return res.json({ success: false, error: 'userId and newPassword required' });
+  if (newPassword.length < 6) return res.json({ success: false, error: 'password min 6 chars' });
+  const user = data.users.find(u => u.id === userId);
+  if (!user) return res.json({ success: false, error: 'user not found' });
+  user.passwordHash = bcrypt.hashSync(newPassword, 10);
+  saveDB();
+  console.log(`[ADMIN] Password reset for user ${userId} by admin`);
+  res.json({ success: true });
+});
+
+// Admin: Delete user
+app.post('/api/admin/delete-user', requireAdmin, (req, res) => {
+  const { userId } = req.body || {};
+  if (!userId) return res.json({ success: false, error: 'userId required' });
+  const idx = data.users.findIndex(u => u.id === userId);
+  if (idx < 0) return res.json({ success: false, error: 'user not found' });
+  // Delete user and related data
+  data.users.splice(idx, 1);
+  delete data.scores[userId];
+  saveDB();
+  console.log(`[ADMIN] User ${userId} deleted by admin`);
+  res.json({ success: true });
+});
+
 // Static files
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0, etag: false }));
 
@@ -503,7 +530,7 @@ function loadUsers(page) {
           '<button onclick="currentSearch=document.getElementById(\\'searchInput\\').value;loadUsers(1);">搜索</button>' +
           '<button class="b-reset" onclick="currentSearch=\\'\\';document.getElementById(\\'searchInput\\').value=\\'\\';loadUsers(1);">重置</button>' +
         '</div>' +
-        '<table><thead><tr><th>ID</th><th>手机号</th><th>姓名</th><th>学校</th><th>生日</th><th>星星</th><th>小鸡</th><th>注册时间</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<table><thead><tr><th>ID</th><th>手机号</th><th>姓名</th><th>学校</th><th>生日</th><th>星星</th><th>小鸡</th><th>注册时间</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table>' +
         '<div class="pagination">' +
           '<button ' + (d.page <= 1 ? 'disabled' : '') + ' onclick="loadUsers(' + (d.page - 1) + ')">上一页</button>' +
           pages +
@@ -542,6 +569,53 @@ if (token) {
       }
     })
     .catch(function() { logout(); });
+}
+
+// Admin: Reset user password
+function resetPassword(userId, phone) {
+  var newPass = prompt('重置用户 ' + phone + ' 的密码\\n请输入新密码（至少6位）：');
+  if (!newPass || newPass.length < 6) {
+    alert('密码至少6位');
+    return;
+  }
+  fetch(API + '/api/admin/reset-password', {
+    method: 'POST',
+    headers: ah(),
+    body: JSON.stringify({ userId: userId, newPassword: newPass })
+  }).then(function(r){return r.json();})
+    .then(function(d) {
+      if (d.success) {
+        alert('密码重置成功！');
+      } else {
+        alert('重置失败：' + (d.error || '未知错误'));
+      }
+    })
+    .catch(function(e) {
+      alert('网络错误：' + e.message);
+    });
+}
+
+// Admin: Delete user
+function deleteUser(userId, phone) {
+  if (!confirm('确定要删除用户 ' + phone + ' 吗？\\n此操作不可恢复，用户的所有数据将被清空！')) {
+    return;
+  }
+  fetch(API + '/api/admin/delete-user', {
+    method: 'POST',
+    headers: ah(),
+    body: JSON.stringify({ userId: userId })
+  }).then(function(r){return r.json();})
+    .then(function(d) {
+      if (d.success) {
+        alert('用户删除成功！');
+        loadUsers(1); // Refresh user list
+      } else {
+        alert('删除失败：' + (d.error || '未知错误'));
+      }
+    })
+    .catch(function(e) {
+      alert('网络错误：' + e.message);
+    });
 }
 </script>
 </body>
