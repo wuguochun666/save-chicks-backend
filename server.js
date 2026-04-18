@@ -212,7 +212,7 @@ app.post('/api/login', (req, res) => {
     success: true, token,
     user: { id: user.id, phone: user.phone, name: maskName(user.name),
              school: user.school, totalStars: score.totalStars, totalChicks: score.totalChicks,
-             starsPerLevel: score.stars || [] }
+             starsPerLevel: (score && score.stars) ? score.stars : [] }
   });
 });
 
