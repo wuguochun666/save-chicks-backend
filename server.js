@@ -191,7 +191,7 @@ app.post('/api/register', (req, res) => {
   console.log(`[REG] ${name} (${phone})`);
   res.json({
     success: true, isNew: true, token,
-    user: { id: userId, phone, name: maskName(name), school: user.school, totalStars: 0, totalChicks: 0 }
+    user: { id: userId, phone, name: maskName(name), school: user.school, totalStars: 0, totalChicks: 0, starsPerLevel: [] }
   });
 });
 
@@ -211,7 +211,8 @@ app.post('/api/login', (req, res) => {
   res.json({
     success: true, token,
     user: { id: user.id, phone: user.phone, name: maskName(user.name),
-             school: user.school, totalStars: score.totalStars, totalChicks: score.totalChicks }
+             school: user.school, totalStars: score.totalStars, totalChicks: score.totalChicks,
+             starsPerLevel: user.starsPerLevel || [] }
   });
 });
 
