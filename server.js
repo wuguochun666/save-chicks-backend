@@ -416,6 +416,11 @@ tr:hover td{background:#fffbf0}
 h3{margin-bottom:12px;font-size:15px;color:#666}
 .refresh-btn{padding:10px 24px;background:#f59e0b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;margin-bottom:16px}
 .refresh-btn:hover{background:#d97706}
+
+      .ops-cell { white-space: nowrap; }
+      .op-btn { padding:4px 10px; border-radius:4px; font-size:0.82em; cursor:pointer; margin-right:4px; }
+      .op-reset { border:1px solid #1976d2; background:#e3f2fd; color:#1976d2; }
+      .op-delete { border:1px solid #d32f2f; background:#ffebee; color:#d32f2f; }
 </style>
 </head>
 <body>
@@ -528,9 +533,21 @@ function loadUsers(page) {
     .then(function(r){return r.json();})
     .then(function(d) {
       if (!d.success) return;
-      var rows = d.users.map(function(u) {
-        return '<tr><td>' + u.id + '</td><td>' + u.phone + '</td><td>' + u.name + '</td><td>' + u.school + '</td><td>' + u.birthdate + '</td><td><span class="badge b-star">⭐ ' + u.totalStars + '</span></td><td><span class="badge b-chick">🐥 ' + u.totalChicks + '</span></td><td>' + (u.created_at ? u.created_at.split('T')[0] : '-') + '</td><td>'<button onclick=\"resetPwd(\'\'+u.id+'\',\'\'+(u.phone||'')+'\')\" style=\"padding:4px 10px;border-radius:4px;border:1px solid #1976d2;background:#e3f2fd;color:#1976d2;font-size:0.82em;cursor:pointer\">重置密码</button><button onclick=\"delUser(\'\'+u.id+'\',\'\'+(u.name||'')+'\')\" style=\"padding:4px 10px;border-radius:4px;border:1px solid #d32f2f2;background:#ffebee;color:#d32f2f2;font-size:0.82em;cursor:pointer;margin-left:4px\">删除</button>'</td></tr>';
-      }).join('');
+      var rows = d.users.map(function(u, idx) {
+          return '<tr data-uid="' + u.id + '" data-phone="' + (u.phone||'') + '" data-name="' + (u.name||'') + '">' +
+            '<td>' + u.id + '</td>' +
+            '<td>' + u.phone + '</td>' +
+            '<td>' + u.name + '</td>' +
+            '<td>' + u.school + '</td>' +
+            '<td>' + u.birthdate + '</td>' +
+            '<td>' + u.totalStars + '</td>' +
+            '<td>' + u.totalChicks + '</td>' +
+            '<td>' + (u.created_at ? u.created_at.split('T')[0] : '-') + '</td>' +
+            '<td class="ops-cell">' +
+              '<button class="op-btn op-reset" data-action="reset">' + '重置密码' + '</button>' +
+              '<button class="op-btn op-delete" data-action="delete">' + '删除' + '</button>' +
+            '</td></tr>';
+        }).join('');
 
       var pages = '';
       for (var p = 1; p <= Math.min(d.pages, 5); p++) {
@@ -540,7 +557,24 @@ function loadUsers(page) {
       document.getElementById('content').innerHTML =
         '<div class="search-bar">' +
           '<input type="text" id="searchInput" placeholder="搜索：手机号 / 姓名 / 学校" value="' + (currentSearch || '') + '">' +
-          '<button onclick="currentSearch=document.getElementById(\'searchInput\').value;loadUsers(1);">搜索</button>' +
+          '<button onclick="currentSearch=document.getElementById(\'searchInput\').value;
+      // Event delegation for operation buttons
+      var tbl = document.querySelector('#content table');
+      if (tbl) {
+        tbl.addEventListener('click', function(e) {
+          var btn = e.target.closest('.op-btn');
+          if (!btn) return;
+          var tr = btn.closest('tr');
+          if (!tr) return;
+          var uid = tr.getAttribute('data-uid');
+          var phone = tr.getAttribute('data-phone');
+          var uname = tr.getAttribute('data-name');
+          var action = btn.getAttribute('data-action');
+          if (action === 'reset') { resetPwd(uid, phone); }
+          else if (action === 'delete') { delUser(uid, uname); }
+        });
+      }
+loadUsers(1);">搜索</button>' +
           '<button class="b-reset" onclick="currentSearch=\'\';document.getElementById(\'searchInput\').value=\'\';loadUsers(1);">重置</button>' +
         '</div>' +
         '<table><thead><tr><th>ID</th><th>手机号</th><th>姓名</th><th>学校</th><th>生日</th><th>星星</th><th>小鸡</th><th>注册时间</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table>' +
