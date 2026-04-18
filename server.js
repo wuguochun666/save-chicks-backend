@@ -447,16 +447,15 @@ h3{margin-bottom:12px;font-size:15px;color:#666}
   <div class="content" id="content"></div>
 </div>
 
-<p style="margin:8px 0;color:#e67e22;font-size:0.85em;">⚠️ 重置密码=设为123456 | 删除用户=清除所有数据</p>
 <script>
 function resetPwd(uid, phone) {
   if (!confirm('确定重置该用户密码为 123456？')) return;
-  fetch(API+'/api/admin/reset-password',{method:'POST',headers:ah(),body:JSON.stringify({userId:uid,newPassword:'123456'})})
+  fetch(API+'/api/admin/reset-password',{method:'POST',headers:ah(),body:JSON.stringify({userId:parseInt(uid),newPassword:'123456'})})
     .then(r=>r.json()).then(d=>{alert(d.success?'密码已重置为123456':('错误:'+(d.error||'')));if(d.success)loadUsers(1);});
 }
 function delUser(uid, name) {
   if (!confirm('确定删除用户 '+(name||'')+'？不可恢复！')) return;
-  fetch(API+'/api/admin/delete-user',{method:'POST',headers:ah(),body:JSON.stringify({userId:uid})})
+  fetch(API+'/api/admin/delete-user',{method:'POST',headers:ah(),body:JSON.stringify({userId:parseInt(uid)})})
     .then(r=>r.json()).then(d=>{alert(d.success?'用户已删除':('错误:'+(d.error||'')));if(d.success)loadUsers(1);});
 }
 
@@ -555,6 +554,7 @@ function loadUsers(page) {
       }
 
       document.getElementById('content').innerHTML =
+        '<div style="margin-bottom:8px;color:#e67e22;font-size:0.85em;">⚠️ 重置密码=设为123456 | 删除用户=清除所有数据</div>' +
         '<div class="search-bar">' +
           '<input type="text" id="searchInput" placeholder="搜索：手机号 / 姓名 / 学校" value="' + (currentSearch || '') + '">' +
           '<button onclick="doSearch()">搜索</button>' +
