@@ -202,7 +202,7 @@ app.post('/api/login', (req, res) => {
   if (!password) return res.json({ success: false, error: 'password required' });
   const user = data.users.find(u => u.phone === phone);
   if (!user) return res.json({ success: false, error: 'user not found, please register first' });
-  if (!bcrypt.compareSync(password, user.passwordHash))
+  if (!user.passwordHash || !bcrypt.compareSync(password, user.passwordHash))
     return res.json({ success: false, error: 'password wrong' });
   const token = makeToken(user.id);
   const score = getScore(user.id);
