@@ -93,7 +93,7 @@ function updateScore(userId, starsPerLevel) {
 }
 
 function getUser(id) { return data.users.find(u => u.id === id); }
-function getScore(userId) { return data.scores[userId] || { totalStars: 0, totalChicks: 0 }; }
+function getScore(userId) { return data.scores[userId] || { stars: [], totalStars: 0, totalChicks: 0 }; }
 
 function getTopScores(limit) {
   return Object.entries(data.scores)
