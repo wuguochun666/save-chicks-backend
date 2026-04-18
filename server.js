@@ -519,7 +519,7 @@ function loadOverview() {
       }
       var s = d.stats;
       document.getElementById('content').innerHTML =
-        '<button class="refresh-btn" onclick="loadTab('overview')">刷新数据</button>' +
+        '<button class="refresh-btn" onclick="loadTab(\\"overview\\")">刷新数据</button>' +
         '<div class="stat-cards">' +
           '<div class="stat-card"><div class="label">总用户数</div><div class="value">' + s.totalUsers + '</div><div class="sub">累计注册</div></div>' +
           '<div class="stat-card"><div class="label">总星星数</div><div class="value">' + s.totalStars + '</div><div class="sub">全局用户</div></div>' +
@@ -557,25 +557,8 @@ function loadUsers(page) {
       document.getElementById('content').innerHTML =
         '<div class="search-bar">' +
           '<input type="text" id="searchInput" placeholder="搜索：手机号 / 姓名 / 学校" value="' + (currentSearch || '') + '">' +
-          '<button onclick="currentSearch=document.getElementById(\'searchInput\').value;
-      // Event delegation for operation buttons
-      var tbl = document.querySelector('#content table');
-      if (tbl) {
-        tbl.addEventListener('click', function(e) {
-          var btn = e.target.closest('.op-btn');
-          if (!btn) return;
-          var tr = btn.closest('tr');
-          if (!tr) return;
-          var uid = tr.getAttribute('data-uid');
-          var phone = tr.getAttribute('data-phone');
-          var uname = tr.getAttribute('data-name');
-          var action = btn.getAttribute('data-action');
-          if (action === 'reset') { resetPwd(uid, phone); }
-          else if (action === 'delete') { delUser(uid, uname); }
-        });
-      }
-loadUsers(1);">搜索</button>' +
-          '<button class="b-reset" onclick="currentSearch=\'\';document.getElementById(\'searchInput\').value=\'\';loadUsers(1);">重置</button>' +
+          '<button onclick="doSearch()">搜索</button>' +
+          '<button class="b-reset" onclick="doReset()">重置</button>' +
         '</div>' +
         '<table><thead><tr><th>ID</th><th>手机号</th><th>姓名</th><th>学校</th><th>生日</th><th>星星</th><th>小鸡</th><th>注册时间</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table>' +
         '<div class="pagination">' +
@@ -597,10 +580,36 @@ function loadLeaderboard() {
         return '<tr><td>' + medal + '</td><td>' + u.id + '</td><td>' + u.name + '</td><td>' + u.phone + '</td><td>' + u.school + '</td><td><span class="badge b-star">⭐ ' + u.totalStars + '</span></td><td><span class="badge b-chick">🐥 ' + u.totalChicks + '</span></td><td>' + (u.updated_at ? u.updated_at.replace('T',' ').slice(0,16) : '-') + '</td></tr>';
       }).join('');
       document.getElementById('content').innerHTML =
-        '<button class="refresh-btn" onclick="loadTab(\'leaderboard\')">刷新排行榜</button>' +
+        '<button class="refresh-btn" onclick="loadTab(\\"leaderboard\\")">刷新排行榜</button>' +
         '<table><thead><tr><th>排名</th><th>ID</th><th>姓名</th><th>手机号</th><th>学校</th><th>星星</th><th>小鸡</th><th>更新时间</th></tr></thead><tbody>' + rows + '</tbody></table>';
     });
 }
+
+// 辅助函数：搜索和重置
+function doSearch() {
+  currentSearch = document.getElementById('searchInput').value;
+  loadUsers(1);
+}
+function doReset() {
+  currentSearch = '';
+  var si = document.getElementById('searchInput');
+  if (si) si.value = '';
+  loadUsers(1);
+}
+
+// 事件委托：操作按钮（重置密码/删除用户）
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.op-btn');
+  if (!btn) return;
+  var tr = btn.closest('tr');
+  if (!tr) return;
+  var uid = tr.getAttribute('data-uid');
+  var phone = tr.getAttribute('data-phone');
+  var uname = tr.getAttribute('data-name');
+  var action = btn.getAttribute('data-action');
+  if (action === 'reset') { resetPwd(uid, phone); }
+  else if (action === 'delete') { delUser(uid, uname); }
+});
 
 // 启动时检查登录状态
 if (token) {
