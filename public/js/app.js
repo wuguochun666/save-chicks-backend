@@ -675,12 +675,21 @@ function renderQuestion() {
   var q = story.questions[currentQuestionIndex];
   var qType = q.type || 'choice'; // 默认选择题
 
-  document.getElementById('quiz-level-info').innerHTML =
+  // v44 修复: 添加 null 检查，防止在非答题页面调用时出错
+  var levelInfoEl = document.getElementById('quiz-level-info');
+  var articleEl = document.getElementById('quiz-article');
+  var vocabAreaEl = document.getElementById('quiz-vocab-area');
+  if (!levelInfoEl || !articleEl || !vocabAreaEl) {
+    console.log('renderQuestion: elements not ready, skipping');
+    return;
+  }
+
+  levelInfoEl.innerHTML =
     '<span class="qlevel">' + (currentQuestionIndex + 1) + ' / ' + story.questions.length + '</span>';
 
   // 显示文章(可点击英文单词发音)
   var article = story.text || story.article || '';
-  document.getElementById('quiz-article').innerHTML = '<div class="article-text">' + article + '</div>';
+  articleEl.innerHTML = '<div class="article-text">' + article + '</div>';
   // v38 初始化文章点击发音
   initArticleClickToSpeak();
 
@@ -697,7 +706,7 @@ function renderQuestion() {
     });
     vocabHtml += '</div></div>';
   }
-  document.getElementById('quiz-vocab-area').innerHTML = vocabHtml;
+  vocabAreaEl.innerHTML = vocabHtml;
   document.querySelectorAll('#quiz-vocab-area .vocab-item-inline').forEach(function(el) {
     el.onclick = function() { var w = this.getAttribute('data-vword'); if (w) speakWord(w); };
   });
