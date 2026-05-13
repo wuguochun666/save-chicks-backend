@@ -184,6 +184,19 @@ var _isPaused = false;
 var _pendingNextQuestion = false;
 var _nextQuestionTimer = null;
 
+// v44 阅读理解闯关状态
+var readingQuizState = {
+  active: false,
+  questions: [],
+  currentIndex: 0,
+  correctCount: 0,
+  streakCount: 0,
+  timerInterval: null,
+  timeLeft: 0,
+  levelIndex: null,
+  results: []
+};
+
 // RESCUE_LEVELS: 每3关救1只小鸡(关卡索引从0开始:2,5,8...)
 var RESCUE_LEVELS = [2,5,8,11,14,17,20,23,26,29];
 var TOTAL_LEVELS = 30;
@@ -1137,6 +1150,13 @@ function showLevelResult(score, stars, passed, rescuedChick, chickIdx, coinsEarn
     var resultScore = document.getElementById('result-score');
     if (resultScore) resultScore.innerHTML += reviewHtml;
   }
+  
+  // v44 阅读理解闯关答题入口
+  var rqHtml = '<div style="margin-top:16px;text-align:center;">' +
+    '<button class="result-btn" style="background:linear-gradient(135deg,#4a90d9,#2196F3);" onclick="startReadingQuiz(' + currentLevel + ')">📖 阅读理解闯关</button>' +
+    '</div>';
+  var resultScore2 = document.getElementById('result-score');
+  if (resultScore2) resultScore2.innerHTML += rqHtml;
 }
 
 function retryLevel() {
@@ -2277,6 +2297,222 @@ function prevVocabReviewCard() {
 
 function exitVocabReview() {
   showScreen('level-result');
+}
+
+// v44 阅读理解闯关答题
+function startReadingQuiz(levelIndex) {
+  var story = STORIES[levelIndex];
+  if (!story || !story.questions || story.questions.length === 0) {
+    showToast('暂无题目数据');
+    return;
+  }
+  
+  // 生成阅读理解题目（从关卡题目中抽取或生成）
+  var allQs = story.questions.filter(function(q) { return q.type === 'choice' || q.type === 'truefalse'; });
+  if (allQs.length === 0) {
+    showToast('本关暂无阅读理解题目');
+    return;
+  }
+  
+  // 随机选3-5道题
+  var shuffled = allQs.slice().sort(function() { return Math.random() - 0.5; });
+  var count = Math.min(shuffled.length, Math.floor(Math.random() * 3) + 3); // 3-5道
+  readingQuizState = {
+    active: true,
+    questions: shuffled.slice(0, count),
+    currentIndex: 0,
+    correctCount: 0,
+    streakCount: 0,
+    timerInterval: null,
+    timeLeft: 30,
+    levelIndex: levelIndex,
+    results: []
+  };
+  
+  showScreen('reading-quiz');
+  renderReadingQuizQuestion();
+}
+
+function renderReadingQuizQuestion() {
+  var rq = readingQuizState;
+  if (!rq.active || rq.currentIndex >= rq.questions.length) {
+    finishReadingQuiz();
+    return;
+  }
+  
+  var q = rq.questions[rq.currentIndex];
+  var qText = q.q || q.question || '';
+  var progress = ((rq.currentIndex) / rq.questions.length * 100).toFixed(0) + '%';
+  var streakBadge = rq.streakCount >= 2 ? '<span class="rq-streak-badge">🔥 ' + rq.streakCount + '连击!</span>' : '';
+  
+  var html = '<div class="rq-question-text">' + qText + '</div>';
+  html += '<div class="rq-options">';
+  
+  if (q.type === 'choice') {
+    (q.options || []).forEach(function(opt, i) {
+      html += '<div class="rq-option-btn" data-opt-idx="' + i + '">' + ('ABCDE')[i] + '. ' + opt + '</div>';
+    });
+  } else {
+    html += '<div class="rq-option-btn" data-opt-idx="1">A. 正确 (True)</div>';
+    html += '<div class="rq-option-btn" data-opt-idx="0">B. 错误 (False)</div>';
+  }
+  html += '</div>';
+  
+  document.getElementById('rq-progress-fill').style.width = progress;
+  document.getElementById('rq-timer').className = 'rq-timer';
+  document.getElementById('rq-timer').innerHTML = '⏱️ ' + rq.timeLeft + 's';
+  document.getElementById('rq-content').innerHTML = html;
+  
+  // 绑定选项点击
+  var opts = document.querySelectorAll('.rq-option-btn');
+  opts.forEach(function(opt) {
+    opt.onclick = function() {
+      if (opt.classList.contains('correct') || opt.classList.contains('wrong')) return;
+      selectReadingQuizAnswer(parseInt(opt.getAttribute('data-opt-idx')));
+    };
+  });
+  
+  // 启动计时器
+  startReadingQuizTimer();
+}
+
+function startReadingQuizTimer() {
+  var rq = readingQuizState;
+  if (rq.timerInterval) clearInterval(rq.timerInterval);
+  rq.timeLeft = 30;
+  
+  rq.timerInterval = setInterval(function() {
+    rq.timeLeft--;
+    var timerEl = document.getElementById('rq-timer');
+    if (!timerEl) { clearInterval(rq.timerInterval); return; }
+    timerEl.innerHTML = '⏱️ ' + rq.timeLeft + 's';
+    
+    if (rq.timeLeft <= 10) timerEl.className = 'rq-timer danger';
+    else if (rq.timeLeft <= 15) timerEl.className = 'rq-timer warning';
+    
+    if (rq.timeLeft <= 0) {
+      clearInterval(rq.timerInterval);
+      // 超时视为答错
+      selectReadingQuizAnswer(-1);
+    }
+  }, 1000);
+}
+
+function selectReadingQuizAnswer(userIdx) {
+  var rq = readingQuizState;
+  if (!rq.active || rq.currentIndex >= rq.questions.length) return;
+  
+  if (rq.timerInterval) clearInterval(rq.timerInterval);
+  
+  var q = rq.questions[rq.currentIndex];
+  var correctIdx = Number(q.answer !== undefined ? q.answer : q.correct);
+  var correct = userIdx === correctIdx;
+  
+  if (correct) {
+    rq.correctCount++;
+    rq.streakCount++;
+    Sound.play('win');
+  } else {
+    rq.streakCount = 0;
+    Sound.play('fail');
+  }
+  
+  rq.results.push({
+    question: q.q || q.question || '',
+    userAnswer: userIdx,
+    correctAnswer: correctIdx,
+    correct: correct
+  });
+  
+  // 高亮选项
+  var opts = document.querySelectorAll('.rq-option-btn');
+  opts.forEach(function(opt, i) {
+    if (i === correctIdx) opt.classList.add('correct');
+    else if (i === userIdx && !correct) opt.classList.add('wrong');
+  });
+  
+  // 自动进入下一题
+  setTimeout(function() {
+    rq.currentIndex++;
+    renderReadingQuizQuestion();
+  }, correct ? 1200 : 2000);
+}
+
+function finishReadingQuiz() {
+  var rq = readingQuizState;
+  rq.active = false;
+  if (rq.timerInterval) { clearInterval(rq.timerInterval); rq.timerInterval = null; }
+  
+  var total = rq.questions.length;
+  var correct = rq.correctCount;
+  var pass = correct >= Math.ceil(total * 0.6); // 60%及格
+  var score = total > 0 ? Math.round((correct / total) * 100) : 0;
+  var stars = score >= 100 ? 3 : score >= 80 ? 2 : 1;
+  var streak = rq.streakCount;
+  
+  // 奖励
+  var coins = 0;
+  if (pass) {
+    coins = stars * 5;
+    var progress = Storage.get(Storage.KEYS.PROGRESS) || [];
+    if (progress[rq.levelIndex]) {
+      var existing = progress[rq.levelIndex];
+      if (score > (existing.readingScore || 0)) {
+        coins += Math.floor(score / 20);
+      }
+      existing.readingScore = score;
+      existing.readingStars = Math.max(existing.readingStars || 0, stars);
+    }
+    Storage.addCoins(coins);
+    Storage.save();
+  }
+  
+  // 保存历史记录
+  var historyResult = {
+    levelIndex: rq.levelIndex,
+    score: score,
+    correctCount: correct,
+    totalQuestions: total,
+    passed: pass,
+    stars: stars,
+    streakCount: streak,
+    timestamp: new Date().toISOString()
+  };
+  Storage.saveReadingQuizResult(historyResult);
+  
+  // 显示结果
+  var resultHtml = '<div class="rq-result-header">';
+  resultHtml += '<h2>' + (pass ? '🎉 过关!' : '💪 再接再厉!') + '</h2>';
+  resultHtml += '<div class="rq-result-score ' + (pass ? 'pass' : 'fail') + '">' + score + '%</div>';
+  resultHtml += '<div class="rq-result-stars">' + '⭐'.repeat(stars) + '</div>';
+  if (streak >= 2) {
+    resultHtml += '<div class="rq-result-streak">🔥 最高 ' + streak + ' 连击!</div>';
+  }
+  resultHtml += '<div style="font-size:0.9em;color:#666;">' + correct + '/' + total + ' 题正确</div>';
+  if (pass && coins > 0) {
+    resultHtml += '<div class="rq-result-reward">💰 +' + coins + ' 金币</div>';
+  }
+  resultHtml += '</div>';
+  resultHtml += '<div class="rq-result-btns">';
+  resultHtml += '<button class="rq-retry-btn primary" onclick="startReadingQuiz(' + rq.levelIndex + ')">🔄 再来一次</button>';
+  resultHtml += '<button class="rq-retry-btn secondary" onclick="exitReadingQuiz(true)">返回关卡结果</button>';
+  resultHtml += '</div>';
+  
+  document.getElementById('rq-content').innerHTML = resultHtml;
+  document.getElementById('rq-progress-fill').style.width = '100%';
+  document.getElementById('rq-timer').style.display = 'none';
+}
+
+function exitReadingQuiz(returnToResult) {
+  var rq = readingQuizState;
+  rq.active = false;
+  if (rq.timerInterval) { clearInterval(rq.timerInterval); rq.timerInterval = null; }
+  if (returnToResult) {
+    showScreen('level-result');
+  } else {
+    showScreen('home');
+    renderLevelMap();
+  }
 }
 
 function initFlashcardSwipe() {
