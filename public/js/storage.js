@@ -18,7 +18,8 @@ const Storage = {
     CHICK_STATES: 'sc_chick_states',        // v36 小鸡花园2.0
     VOCAB_REVIEW: 'sc_vocab_review',          // v37 词汇复习进度
     ACHIEVEMENTS: 'sc_achievements',            // v37 成就系统
-    CLICKED_WORDS: 'sc_clicked_words'          // v43 点击单词记录
+    CLICKED_WORDS: 'sc_clicked_words',          // v43 点击单词记录
+    READING_QUIZ_HISTORY: 'sc_reading_quiz_history'  // v44 阅读理解闯关答题记录
   },
   init() {
     if (!this.get(this.KEYS.CHICKS)) {
@@ -35,6 +36,7 @@ const Storage = {
       this.set(this.KEYS.VOCAB_REVIEW, {});
       this.set(this.KEYS.ACHIEVEMENTS, {});
       this.set(this.KEYS.CLICKED_WORDS, {});
+      this.set(this.KEYS.READING_QUIZ_HISTORY, []);
     }
   },
   get(key) {
@@ -440,5 +442,35 @@ const Storage = {
       }
     }
     return allWords;
+  };
+  
+  // v44 阅读理解闯关历史记录
+  Storage.saveReadingQuizResult = function(result) {
+    var history = this.get(this.KEYS.READING_QUIZ_HISTORY) || [];
+    history.unshift(result);
+    // 保留最近50条记录
+    if (history.length > 50) {
+      history = history.slice(0, 50);
+    }
+    this.set(this.KEYS.READING_QUIZ_HISTORY, history);
+  };
+  
+  Storage.getReadingQuizHistory = function() {
+    return this.get(this.KEYS.READING_QUIZ_HISTORY) || [];
+  };
+  
+  Storage.getReadingQuizStats = function(levelIndex) {
+    var history = this.getReadingQuizHistory();
+    var filtered = levelIndex !== undefined ? history.filter(function(r) { return r.levelIndex === levelIndex; }) : history;
+    var total = filtered.length;
+    var passed = filtered.filter(function(r) { return r.passed; }).length;
+    var totalCorrect = filtered.reduce(function(sum, r) { return sum + (r.correctCount || 0); }, 0);
+    var totalQuestions = filtered.reduce(function(sum, r) { return sum + (r.totalQuestions || 0); }, 0);
+    return {
+      total: total,
+      passed: passed,
+      passRate: total > 0 ? Math.round((passed / total) * 100) : 0,
+      avgCorrect: totalQuestions > 0 ? ((totalCorrect / totalQuestions) * 100).toFixed(1) + '%' : '0%'
+    };
   };
 })();
