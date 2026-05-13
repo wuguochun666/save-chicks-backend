@@ -481,6 +481,22 @@
     .rq-retry-btn { padding: 14px; border: none; border-radius: 12px; font-size: 1.1em; cursor: pointer; }
     .rq-retry-btn.primary { background: linear-gradient(135deg, #4CAF50, #66bb6a); color: white; }
     .rq-retry-btn.secondary { background: #e0e0e0; color: #666; }
+    
+    /* v45 学习数据统计 */
+    .stats-header { padding: 16px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-align: center; flex-shrink: 0; }
+    .stats-rank-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 20px; font-size: 1em; margin-top: 8px; }
+    .stats-content { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .stats-card { background: white; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .stats-card-icon { font-size: 1.8em; margin-bottom: 4px; }
+    .stats-card-value { font-size: 1.5em; font-weight: bold; color: #333; }
+    .stats-card-label { font-size: 0.8em; color: #888; margin-top: 4px; }
+    .stats-chart-container { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .stats-chart-title { font-size: 1em; color: #666; margin-bottom: 12px; text-align: center; }
+    .stats-chart-canvas { width: 100%; height: 150px; }
+    .stats-stars-display { text-align: center; margin: 16px 0; }
+    .stats-stars-value { font-size: 2.5em; font-weight: bold; color: #FFD700; }
+    .stats-stars-label { font-size: 0.9em; color: #888; }
   </style>
 </head>
 <body>
@@ -672,6 +688,9 @@
     <button class="nav-btn" onclick="goHome()">
       <span class="nav-icon">🏠</span><span>首页</span>
     </button>
+    <button class="nav-btn" onclick="renderLearningStats()">
+      <span class="nav-icon">📊</span><span>数据</span>
+    </button>
     <button class="nav-btn" onclick="navTo('garden')">
       <span class="nav-icon">🐤</span><span>花园</span>
     </button>
@@ -707,6 +726,15 @@
       <span id="ach-count" style="color:#ffd700;font-size:0.85em;"></span>
     </header>
     <div id="achievements-content"></div>
+  </div>
+
+  <!-- v45 学习数据统计 -->
+  <div id="learning-stats" class="screen">
+    <div class="stats-header">
+      <h2>📊 学习数据</h2>
+      <div id="stats-rank" class="stats-rank-badge"></div>
+    </div>
+    <div id="stats-content" class="stats-content"></div>
   </div>
 
   <!-- v43 词汇复习模式 -->
