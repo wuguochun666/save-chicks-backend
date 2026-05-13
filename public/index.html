@@ -497,6 +497,20 @@
     .stats-stars-display { text-align: center; margin: 16px 0; }
     .stats-stars-value { font-size: 2.5em; font-weight: bold; color: #FFD700; }
     .stats-stars-label { font-size: 0.9em; color: #888; }
+
+    /* v46 深色模式 */
+    [data-theme="dark"] { color-scheme: dark; }
+    [data-theme="dark"] body { background: #1a1a2e; color: #e0e0e0; }
+    [data-theme="dark"] .screen { background: #1a1a2e !important; color: #e0e0e0 !important; }
+    [data-theme="dark"] .screen header { background: #16213e !important; }
+    [data-theme="dark"] .settings-item { background: #16213e !important; color: #e0e0e0 !important; }
+    [data-theme="dark"] #home { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important; }
+    [data-theme="dark"] .level-card { background: #16213e !important; color: #e0e0e0 !important; }
+    [data-theme="dark"] .bottom-nav { background: #16213e !important; border-top-color: #0f3460 !important; }
+    [data-theme="dark"] .nav-btn { color: rgba(255,255,255,0.6) !important; }
+    [data-theme="dark"] .nav-btn.active { color: #FFD700 !important; }
+    [data-theme="dark"] #settings { background: #1a1a2e !important; }
+    [data-theme="dark"] .login-box { background: #16213e !important; color: #e0e0e0 !important; }
   </style>
 </head>
 <body>
@@ -656,6 +670,10 @@
       </div>
       <div class="settings-item" onclick="toggleSound()">
         <span id="sound-toggle">音效：开</span>
+        <span>切换 →</span>
+      </div>
+      <div class="settings-item" onclick="toggleTheme()">
+        <span id="theme-toggle">主题：浅色</span>
         <span>切换 →</span>
       </div>
       <div class="settings-item" onclick="navTo('leaderboard')">
