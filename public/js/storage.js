@@ -473,4 +473,60 @@ const Storage = {
       avgCorrect: totalQuestions > 0 ? ((totalCorrect / totalQuestions) * 100).toFixed(1) + '%' : '0%'
     };
   };
+
+  // v45 学习数据统计
+  Storage.getLearningStats = function() {
+    var prog = this.get(this.KEYS.PROGRESS) || [];
+    var passedCount = prog.filter(function(p) { return p && p.passed; }).length;
+    var totalLevels = 30;
+    var starsPerLevel = prog.map(function(p) { return p ? (p.stars || 0) : 0; });
+    var totalStars = starsPerLevel.reduce(function(sum, s) { return sum + s; }, 0);
+    var avgStars = totalLevels > 0 ? (totalStars / totalLevels).toFixed(1) : '0';
+
+    // 词汇
+    var clickedWords = this.getAllClickedWords();
+    var vocabCount = clickedWords.length;
+
+    // 连续学习天数
+    var checkIn = this.get(this.KEYS.CHECKIN) || { streak: 0 };
+    var streakDays = checkIn.streak || 0;
+
+    // 金币
+    var coins = this.getCoins();
+
+    // 获取段位
+    var rank = 'Lv.1';
+    if (totalStars >= 90) rank = '王者';
+    else if (totalStars >= 75) rank = '钻石';
+    else if (totalStars >= 60) rank = '铂金';
+    else if (totalStars >= 45) rank = '黄金';
+    else if (totalStars >= 30) rank = '白银';
+    else if (totalStars >= 15) rank = '青铜';
+    else rank = 'Lv.1';
+
+    // 阅读理解近7天数据
+    var history = this.getReadingQuizHistory();
+    var last7Days = [];
+    for (var i = 6; i >= 0; i--) {
+      var d = new Date();
+      d.setDate(d.getDate() - i);
+      var dateStr = d.toISOString().split('T')[0];
+      var dayData = history.filter(function(r) { return r.timestamp && r.timestamp.startsWith(dateStr); });
+      var correct = dayData.reduce(function(sum, r) { return sum + (r.correctCount || 0); }, 0);
+      var total = dayData.reduce(function(sum, r) { return sum + (r.totalQuestions || 0); }, 0);
+      last7Days.push(total > 0 ? Math.round((correct / total) * 100) : 0);
+    }
+
+    return {
+      articlesRead: passedCount,
+      totalArticles: totalLevels,
+      vocabMastered: vocabCount,
+      streakDays: streakDays,
+      totalCoins: coins,
+      totalStars: totalStars,
+      avgStars: avgStars,
+      rank: rank,
+      quizAccuracyLast7Days: last7Days
+    };
+  };
 })();
