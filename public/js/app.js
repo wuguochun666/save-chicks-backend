@@ -627,6 +627,68 @@ function initArticleClickToSpeak() {
   // 移除旧的事件监听器,防止重复绑定
   articleEl.removeEventListener('click', handleArticleClick);
   articleEl.addEventListener('click', handleArticleClick);
+  articleEl.addEventListener('contextmenu', handleArticleClick);
+  var longTimer = null;
+  articleEl.addEventListener('touchstart', function(e) {
+    var self = this;
+    longTimer = setTimeout(function() {
+      longTimer = null;
+      if (!document.elementFromPoint) return;
+      var el2 = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+      if (!el2 || el2 === articleEl) return;
+      var tn = findTextNode(el2);
+      if (!tn) return;
+      var w = getWordFromElement(el2, tn);
+      if (w && w.length > 1 && w.length <= 30) {
+        var fe = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY, type: 'contextmenu', preventDefault: function(){}, stopPropagation: function(){}, longPress: true };
+        showWordContextMenu(fe, w, '', '');
+      }
+    }, 600);
+  }, { passive: true });
+  articleEl.addEventListener('touchend', function() { if (longTimer) { clearTimeout(longTimer); longTimer = null; } });
+  articleEl.addEventListener('touchmove', function() { if (longTimer) { clearTimeout(longTimer); longTimer = null; } });
+}
+
+
+// v47 生词本 - 右键/长按加入生词本
+function showWordContextMenu(e, word, meaning, sentence) {
+  var existing = document.getElementById('word-context-menu');
+  if (existing) existing.remove();
+  var menu = document.createElement('div');
+  menu.id = 'word-context-menu';
+  menu.style.cssText = 'position:fixed;z-index:99999;background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.15);padding:8px 0;min-width:180px;font-size:0.95em;';
+  menu.innerHTML = '<div onclick="handleAddToVocabBook(\'' + word.replace(/'/g, "\'") + '\')" style="padding:10px 16px;cursor:pointer;color:#4a3728;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">📚 加入生词本</div><div onclick="playWordFromMenu(\'' + word.replace(/'/g, "\'") + '\')" style="padding:10px 16px;cursor:pointer;color:#666;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">🔊 发音</div><div onclick="hideWordContextMenu()" style="padding:10px 16px;cursor:pointer;color:#999;border-top:1px solid #eee;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">取消</div>';
+  document.body.appendChild(menu);
+  var x = e.clientX || e.pageX || 100;
+  var y = e.clientY || e.pageY || 100;
+  menu.style.left = Math.min(x, window.innerWidth - 200) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
+  e.preventDefault();
+  e.stopPropagation();
+}
+function hideWordContextMenu() {
+  var m = document.getElementById('word-context-menu');
+  if (m) m.remove();
+}
+function handleAddToVocabBook(word) {
+  var story = STORIES[currentLevel];
+  var meaning = '';
+  if (story && story.vocabulary) {
+    var vocabItem = story.vocabulary.find(function(v) { return v.word.toLowerCase() === word.toLowerCase(); });
+    if (vocabItem) meaning = vocabItem.meaning || '';
+  }
+  var articleTitle = story ? story.title : '';
+  var added = Storage.addToVocabBook(word, meaning, '', currentLevel, articleTitle);
+  hideWordContextMenu();
+  showToast(added ? '已加入生词本 📖' : '生词本已有该单词');
+}
+function playWordFromMenu(word) {
+  var utterance = new SpeechSynthesisUtterance(word);
+  utterance.lang = 'en-US';
+  utterance.rate = 0.85;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utterance);
+  hideWordContextMenu();
 }
 
 function handleArticleClick(e) {
@@ -638,6 +700,17 @@ function handleArticleClick(e) {
   if (!textNode) return;
   var word = getWordFromElement(el, textNode);
   if (word && word.length > 1 && word.length <= 30) {
+    // right-click or longPress: show vocab book menu
+    if (e.type === 'contextmenu' || e.longPress) {
+      var story2 = STORIES[currentLevel];
+      var m2 = '';
+      if (story2 && story2.vocabulary) {
+        var vi = story2.vocabulary.find(function(v) { return v.word.toLowerCase() === word.toLowerCase(); });
+        if (vi) m2 = vi.meaning || '';
+      }
+      showWordContextMenu(e, word, m2, '');
+      return;
+    }
     speakWord(word);
     // v43 记录点击的单词
     var story = STORIES[currentLevel];
@@ -1150,6 +1223,14 @@ function showLevelResult(score, stars, passed, rescuedChick, chickIdx, coinsEarn
     var resultScore = document.getElementById('result-score');
     if (resultScore) resultScore.innerHTML += reviewHtml;
   }
+
+  // v47 生词本按钮
+  var vbList = Storage.getVocabBook();
+  var vbHtml = '<div style="margin-top:12px;text-align:center;">' +
+    '<button class="result-btn" style="background:linear-gradient(135deg,#f093fb,#f5576c);" onclick="showVocabBook(\'level-result\')">📖 生词本 (' + vbList.length + ')</button>' +
+    '</div>';
+  var resultScoreVB = document.getElementById('result-score');
+  if (resultScoreVB) resultScoreVB.innerHTML += vbHtml;
 
   // v44 阅读理解闯关答题入口
   var rqHtml = '<div style="margin-top:16px;text-align:center;">' +
@@ -2323,6 +2404,109 @@ function prevVocabReviewCard() {
 
 function exitVocabReview() {
   showScreen('level-result');
+}
+
+// v47 生词本
+var _vocabBookBack = 'levels';
+function showVocabBook(backTo) {
+  _vocabBookBack = backTo || 'levels';
+  renderVocabBook();
+  showScreen('vocab-book');
+}
+function exitVocabBook() {
+  showScreen(_vocabBookBack);
+}
+function renderVocabBook() {
+  var book = Storage.getVocabBook();
+  var filter = document.getElementById('vb-level-filter');
+  var selectedLevel = filter ? filter.value : '';
+
+  // Update stats
+  var totalEl = document.getElementById('vb-total-count');
+  var masteredEl = document.getElementById('vb-mastered-count');
+  if (totalEl) totalEl.textContent = book.length;
+  if (masteredEl) masteredEl.textContent = book.filter(function(w) { return w.mastered; }).length;
+
+  // Populate level filter
+  if (filter) {
+    var levelMap = {};
+    book.forEach(function(w) {
+      if (w.levelIndex !== undefined) levelMap[w.levelIndex] = true;
+    });
+    var options = ['<option value="">全部文章</option>'];
+    Object.keys(levelMap).sort().forEach(function(idx) {
+      var title = STORIES[idx] ? STORIES[idx].title : ('第' + (parseInt(idx)+1) + '篇');
+      options.push('<option value="' + idx + '">' + title + '</option>');
+    });
+    filter.innerHTML = options.join('');
+    filter.value = selectedLevel;
+  }
+
+  // Filter
+  var filtered = book;
+  if (selectedLevel !== '') {
+    filtered = book.filter(function(w) { return String(w.levelIndex) === selectedLevel; });
+  }
+
+  var listEl = document.getElementById('vocab-book-list');
+  if (!listEl) return;
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<div class="vocab-book-empty"><div class="vocab-book-empty-icon">📖</div><div>生词本为空</div><div style="font-size:0.85em;margin-top:8px;">点击文章中的单词可加入生词本</div></div>';
+    return;
+  }
+  var html = [];
+  filtered.forEach(function(w) {
+    var masteredClass = w.mastered ? 'mastered' : '';
+    var articleTitle = w.articleTitle || (STORIES[w.levelIndex] ? STORIES[w.levelIndex].title : '');
+    var addDate = w.addedAt ? w.addedAt.split('T')[0] : '';
+    var masterBtnText = w.mastered ? '取消掌握' : '标记掌握';
+    var masterBtnClass = w.mastered ? 'vocab-book-btn-unmaster' : 'vocab-book-btn-master';
+    html.push('<div class="vocab-book-card ' + masteredClass + '" data-word="' + encodeURIComponent(w.word) + '">');
+    html.push('<div class="vocab-book-word-row">');
+    html.push('<span class="vocab-book-word">' + w.word + '</span>');
+    html.push('<button class="vocab-book-btn vocab-book-btn-play" onclick="playVocabWord('' + w.word.replace(/'/g, "\'") + '')">🔊 发音</button>');
+    html.push('</div>');
+    if (w.meaning) html.push('<div class="vocab-book-meaning">' + w.meaning + '</div>');
+    if (w.sentence) html.push('<div class="vocab-book-sentence">' + w.sentence + '</div>');
+    html.push('<div class="vocab-book-meta">' + articleTitle + (addDate ? ' | ' + addDate : '') + '</div>');
+    html.push('<div class="vocab-book-actions">');
+    html.push('<button class="vocab-book-btn ' + masterBtnClass + '" onclick="toggleWordMastered('' + w.word.replace(/'/g, "\'") + '')">' + masterBtnText + '</button>');
+    html.push('<button class="vocab-book-btn vocab-book-btn-remove" onclick="removeFromVocabBook('' + w.word.replace(/'/g, "\'") + '')">删除</button>');
+    html.push('</div></div>');
+  });
+  listEl.innerHTML = html.join('');
+}
+function playVocabWord(word) {
+  var utterance = new SpeechSynthesisUtterance(word);
+  utterance.lang = 'en-US';
+  utterance.rate = 0.85;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utterance);
+}
+function toggleWordMastered(word) {
+  Storage.toggleVocabMastered(decodeURIComponent(word));
+  renderVocabBook();
+}
+function removeFromVocabBook(word) {
+  Storage.removeFromVocabBook(decodeURIComponent(word));
+  renderVocabBook();
+  showToast('已从生词本移除');
+}
+function exportVocabBook(format) {
+  var data = Storage.exportVocabBook(format);
+  if (!data) {
+    showToast('生词本为空');
+    return;
+  }
+  var mimeType = format === 'csv' ? 'text/csv' : 'text/plain';
+  var blob = new Blob([data], { type: mimeType + ';charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '生词本_' + new Date().toISOString().split('T')[0] + '.' + format;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('已导出 ' + format.toUpperCase() + ' 文件');
 }
 
 // v44 阅读理解闯关答题
