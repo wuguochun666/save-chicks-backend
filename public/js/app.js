@@ -3,6 +3,21 @@
 // Railway 后端地址（部署后替换）
 const API_BASE = 'https://save-chicks-backend-production.up.railway.app';
 
+// ==================== 通用工具函数 ====================
+function showToast(message, duration) {
+  duration = duration || 2000;
+  var toast = document.createElement('div');
+  toast.className = 'toast-message';
+  toast.textContent = message;
+  toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:24px;font-size:14px;z-index:9999;animation:toastFadeIn 0.3s;';
+  document.body.appendChild(toast);
+  setTimeout(function() {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(function() { toast.remove(); }, 300);
+  }, duration);
+}
+
 function apiFetch(path, options) {
   return new Promise(function(resolve, reject) {
     var token = Storage.getToken();
@@ -31,23 +46,45 @@ function registerUser(phone, password, name, school, birthdate) {
   });
 }
 
+// 登录（已有用户）
+function loginUser(phone, password) {
+  return apiFetch('/api/login', {
+    method: 'POST',
+    body: JSON.stringify({ phone: phone, password: password })
+  });
+}
+
 // 提交分数
-function submitScore(phone, totalScore, totalStars, chicksSaved, progress) {
+function submitScore(starsPerLevel) {
+  // apiFetch 自动附加 Authorization: Bearer <token>
   return apiFetch('/api/score', {
     method: 'POST',
-    body: JSON.stringify({
-      phone: phone,
-      totalScore: totalScore,
-      totalStars: totalStars,
-      chicksSaved: chicksSaved,
-      progress: progress
-    })
+    body: JSON.stringify({ starsPerLevel: starsPerLevel })
   });
 }
 
 // 获取排行榜
 function getLeaderboard() {
   return apiFetch('/api/leaderboard');
+}
+
+// ==================== 权限检查 ====================
+function checkLogin(actionName) {
+  if (!Storage.isLoggedIn()) {
+    showLogin();
+    return false;
+  }
+  return true;
+}
+
+// 统一导航入口（带权限检查）
+function navTo(screen) {
+  if (screen === 'garden') { if (!checkLogin()) return; renderGarden(); }
+  else if (screen === 'vocab') { if (!checkLogin()) return; renderVocab(); }
+  else if (screen === 'wrong-answers') { renderWrongAnswers(); return; }
+  else if (screen === 'leaderboard') { if (!checkLogin()) return; showLeaderboard(); return; }
+  else if (screen === 'achievements') { if (!checkLogin()) return; renderAchievements(); return; }
+  showScreen(screen);
 }
 
 // ==================== 音效系统 ====================
@@ -143,6 +180,9 @@ var currentLevel = 0;
 var currentQuestionIndex = 0;
 var answers = [];
 var selectedAnswers = [];
+var _isPaused = false;
+var _pendingNextQuestion = false;
+var _nextQuestionTimer = null;
 
 // RESCUE_LEVELS: 每3关救1只小鸡（关卡索引从0开始：2,5,8...）
 var RESCUE_LEVELS = [2,5,8,11,14,17,20,23,26,29];
@@ -150,7 +190,15 @@ var TOTAL_LEVELS = 30;
 var LEVELS_PER_CHICK = 3;
 var screenHistory = [];
 
+// 全屏阅读状态
+var _isFullscreenArticle = false;
+
 // ==================== 页面导航 ====================
+// 首页按钮 - 显示主页
+function goHome() {
+  showScreen('home');
+}
+
 function showScreen(id, skipPush) {
   if (!skipPush && id !== screenHistory[screenHistory.length - 1]) {
     screenHistory.push(id);
@@ -188,15 +236,76 @@ function updateUserDisplay() {
   });
 }
 
+// 更新导航栏登录/注册按钮状态
+function updateNavButtons() {
+  var loggedIn = Storage.isLoggedIn();
+  var loginBtn = document.getElementById('nav-login-btn');
+  var logoutBtn = document.getElementById('nav-logout-btn');
+  if (loginBtn) {
+    loginBtn.style.display = loggedIn ? 'none' : '';
+  }
+  if (logoutBtn) {
+    logoutBtn.style.display = loggedIn ? '' : 'none';
+  }
+}
+
 // ==================== 开场动画 ====================
 function showIntro() {
-  var saved = Storage.getChicksSaved();
-  var remaining = 10 - saved;
-  var html = '<h2>紧急求助！</h2><p>老鹰抓走了<strong>' + remaining + '只</strong>小鸡！</p>';
-  html += '<p>快来帮母鸡妈妈，<br>通过英语阅读闯关，<br>每救回1只小鸡！</p>';
-  html += '<p style="margin-top:20px;color:#ff6b6b;">点击任意位置开始</p>';
+  // 首次进入：播放视频动画
+  // 非首次：跳过直接到归来页
+  var played = Storage.get(Storage.KEYS.PLAYED);
+  if (played) {
+    finishIntro();
+    return;
+  }
+
+  var html = '<video id="intro-video" autoplay playsinline ' +
+    'style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;z-index:1;">' +
+    '<source src="assets/intro.mp4" type="video/mp4">' +
+    '</video>' +
+    '<div id="intro-overlay" style="position:absolute;bottom:0;left:0;right:0;z-index:2;display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:24px;">' +
+    '<p id="intro-hint" style="color:#ffd700;font-size:1.1em;text-shadow:1px 1px 2px rgba(0,0,0,0.8);"></p>' +
+    '<button id="intro-skip-btn" style="padding:12px 28px;background:rgba(255,255,255,0.25);border:2px solid #fff;border-radius:24px;color:#fff;font-size:1em;cursor:pointer;backdrop-filter:blur(4px);">跳过动画</button>' +
+    '</div>';
   document.getElementById('intro-content').innerHTML = html;
   showScreen('intro-screen');
+
+  var video = document.getElementById('intro-video');
+  var skipBtn = document.getElementById('intro-skip-btn');
+  var hint = document.getElementById('intro-hint');
+  
+  // 视频播放结束自动跳转
+  video.addEventListener('ended', function() {
+    finishIntro();
+  });
+  
+  // 视频可以播放时，尝试取消静音（某些浏览器允许）
+  video.addEventListener('canplay', function() {
+    video.muted = false;
+    video.play().catch(function(){
+      // 如果自动播放带声音失败，保持静音等用户交互
+      video.muted = true;
+      video.play();
+    });
+  });
+  
+  // 点击屏幕取消静音
+  document.getElementById('intro-screen').addEventListener('click', function(e) {
+    if (e.target === skipBtn) return; // 跳过按钮单独处理
+    video.muted = false;
+    video.play().catch(function(){});
+  }, { once: true });
+  
+  // 跳过按钮
+  skipBtn.addEventListener('click', function() {
+    video.pause();
+    finishIntro();
+  });
+  
+  // 更新提示文字
+  video.addEventListener('playing', function() {
+    hint.textContent = '点击屏幕开启声音';
+  });
 }
 
 function finishIntro() {
@@ -208,7 +317,12 @@ function finishIntro() {
     syncToServer();
   }
   Sound.stopBgMusicIntro();
-  showReturnScreen();
+  // 根据登录状态决定跳转页面
+  if (Storage.isLoggedIn()) {
+    showReturnScreen();
+  } else {
+    showLogin();
+  }
 }
 
 // ==================== 归来提示页 ====================
@@ -227,43 +341,83 @@ function showReturnScreen() {
   document.getElementById('return-status').innerHTML =
     '<p>已救回 <strong style="color:#4CAF50">' + saved + '</strong> 只，还差 <strong style="color:#ff6b6b">' + remaining + '</strong> 只</p>';
   updateUserDisplay();
+  updateNavButtons();
 }
 
 // ==================== 关卡地图 ====================
 function renderLevelMap() {
   var progress = Storage.get(Storage.KEYS.PROGRESS) || Array(TOTAL_LEVELS).fill(null).map(function() { return { passed: false, score: 0, stars: 0 }; });
   var chicks = Storage.get(Storage.KEYS.CHICKS) || Array(10).fill(false);
-  var html = '<h2 class="map-title">🌟 拯救小鸡之旅 🌟</h2>';
-  html += '<div class="level-grid">';
+  var maxUnlocked = getUnlockedUntil();
+  
+  var html = '<h2 class="map-title" style="text-align:center;font-size:1.3em;color:#4a3728;padding:8px;">🌟 拯救小鸡之旅 🌟</h2>';
+  html += '<div class="map-path">';
+  
   for (var i = 0; i < TOTAL_LEVELS; i++) {
     var p = progress[i] || { passed: false, score: 0, stars: 0 };
     var isRescue = RESCUE_LEVELS.indexOf(i) !== -1;
     var chickIdx = RESCUE_LEVELS.indexOf(i);
     var chickRescued = chickIdx !== -1 && chicks[chickIdx];
-    var prevPassed = i === 0 || (progress[i - 1] && progress[i - 1].passed);
-    var isLocked = !prevPassed;
+    var isLocked = i > maxUnlocked;
+    var story = STORIES[i];
     var typeLabel = '';
-    if (STORIES[i] && STORIES[i].type === 'grammar') {
-      typeLabel = '📝语法';
-    }
-    var chickIcon = chickRescued ? '🐤' : (isRescue ? '🏆' : '');
-    var starsStr = p.stars > 0 ? '<span class="lstar">' + '⭐'.repeat(p.stars) + '</span>' : '';
-    var badge = isRescue && !chickRescued ? '🏆' : '';
-    var lockIcon = isLocked ? '🔒' : '';
-    var cls = 'level-node';
+    if (story && story.type === 'grammar') typeLabel = '📝';
+    else if (story && story.type === 'fill') typeLabel = '✏️';
+    
+    var title = story ? (story.titleCN || story.title || '') : '';
+    if (title.length > 6) title = title.substring(0, 6) + '…';
+    
+    // 蛇形路径：每行5个，交替左右方向
+    var row = Math.floor(i / 5);
+    var col = i % 5;
+    var isEvenRow = row % 2 === 0;
+    var posCol = isEvenRow ? col : (4 - col);
+    
+    var cls = 'map-node';
     if (p.passed) cls += ' passed';
-    else if (isLocked) cls += ' locked';
-    if (isRescue) cls += ' rescue-level';
-    if (chickRescued) cls += ' chick-rescued';
-    html += '<div class="' + cls + '"' + (isLocked ? '' : ' onclick="startLevel(' + i + ')"') + '>' +
-      '<span class="lnum">' + (i + 1) + '</span>' +
-      '<span class="ltype">' + typeLabel + '</span>' +
-      (chickIcon ? '<span class="lchick">' + chickIcon + '</span>' : '') +
-      (badge ? '<span class="lbadge">' + badge + '</span>' : '') +
-      (lockIcon ? '<span class="llock">' + lockIcon + '</span>' : '') +
-      (starsStr ? '<span class="lstars">' + starsStr + '</span>' : '') +
-      '</div>';
+    else if (!isLocked) cls += ' available';
+    else cls += ' locked';
+    if (isRescue) cls += ' rescue';
+    if (chickRescued) cls += ' rescued';
+    
+    html += '<div class="' + cls + '" style="grid-column:' + (posCol + 1) + ';grid-row:' + (row + 1) + ';"' + 
+      (isLocked ? '' : ' onclick="startLevel(' + i + ')"') + '>';
+    
+    // 连接线（非首节点）
+    if (i > 0) {
+      html += '<div class="map-connector"></div>';
+    }
+    
+    html += '<div class="map-node-circle">';
+    if (isLocked) {
+      html += '<span class="map-lock">🔒</span>';
+    } else if (isRescue && !chickRescued) {
+      html += '<span class="map-chick-goal">🏆</span>';
+    } else if (chickRescued) {
+      html += '<span class="map-chick-done">🐤</span>';
+    } else if (p.passed) {
+      html += '<span class="map-check">✅</span>';
+    } else {
+      html += '<span class="map-num">' + (i + 1) + '</span>';
+    }
+    html += '</div>';
+    
+    // 关卡名
+    html += '<div class="map-node-label">' + title + '</div>';
+    
+    // 星星
+    if (p.stars > 0) {
+      html += '<div class="map-stars">' + '⭐'.repeat(p.stars) + '</div>';
+    }
+    
+    // 类型标签
+    if (typeLabel && !isLocked) {
+      html += '<div class="map-type">' + typeLabel + '</div>';
+    }
+    
+    html += '</div>';
   }
+  
   html += '</div>';
   document.getElementById('level-grid-container').innerHTML = html;
   updateUserDisplay();
@@ -271,7 +425,54 @@ function renderLevelMap() {
 
 // ==================== 进入关卡（带开场动画） ====================
 var _pendingLevel = 0;
+// ==================== v36 跳级解锁 ====================
+// 前3关全3星 → 自动解锁第4-6关（前3关跳级）
+// 每连续3关全3星 → 再解锁后续3关（最多一次跳6关）
+function getUnlockedUntil() {
+  var progress = Storage.get(Storage.KEYS.PROGRESS) || [];
+  var unlocked = 3; // 默认解锁前3关（0,1,2）
+  var skip = false;
+  // 检查每连续3关是否全3星
+  for (var i = 0; i < TOTAL_LEVELS - 1; i += 3) {
+    var block = [];
+    for (var j = i; j < i + 3 && j < TOTAL_LEVELS; j++) {
+      var p = progress[j];
+      block.push(p && p.stars === 3);
+    }
+    // 如果这个3关块全3星 → 下一块解锁
+    if (block.length === 3 && block.every(function(b) { return b; })) {
+      if (i + 3 < TOTAL_LEVELS) {
+        unlocked = i + 6; // 解锁到 i+6 关（即下一个block全部解锁）
+      } else {
+        unlocked = TOTAL_LEVELS;
+      }
+    } else {
+      break; // 遇到非全3星块，停止
+    }
+  }
+  return Math.min(unlocked, TOTAL_LEVELS);
+}
+
 function startLevel(levelIndex) {
+  // v36 初始化答题数据
+  answers = [];
+  selectedAnswers = [];
+  _isPaused = false;
+  _pendingNextQuestion = false;
+  if (_nextQuestionTimer) { clearTimeout(_nextQuestionTimer); _nextQuestionTimer = null; }
+  // v36 跳级：检查是否已解锁
+  var maxUnlocked = getUnlockedUntil();
+  if (levelIndex > maxUnlocked) {
+    // 计算跳级条件提示
+    var blockStart = Math.floor(levelIndex / 3) * 3;
+    var hint = '需要第 ' + (blockStart + 1) + '-' + (blockStart + 3) + ' 关全部获得三星才能解锁此关！';
+    alert(hint);
+    return;
+  }
+  if (!checkLogin('闯关')) return;
+  // 检查登录状态
+  if (!checkLogin('闯关')) return;
+  
   _pendingLevel = levelIndex;
   currentLevel = levelIndex;
   currentQuestionIndex = 0;
@@ -288,8 +489,8 @@ function startLevel(levelIndex) {
     messages.push('语法加油站 📝');
     messages.push('认真学习，进步更大！');
   } else {
-    messages.push(story.titleCN || '阅读理解');
-    if (story.titleEN) messages.push(story.titleEN.substring(0, 40));
+    messages.push(story.titleCN || story.title || '阅读理解');
+    if (story.title) messages.push(story.title.substring(0, 40));
   }
   if (isRescue && !chickRescued) {
     messages.push('⏰ 即将营救！');
@@ -305,6 +506,9 @@ function startLevel(levelIndex) {
 function playEntryAnimation(messages, callback) {
   var container = document.getElementById('entry-screen');
   if (!container) { callback && callback(); return; }
+  // 入场动画期间隐藏底部导航栏
+  var bottomNav = document.querySelector('.bottom-nav');
+  if (bottomNav) bottomNav.style.display = 'none';
   showScreen('entry-screen', true);
   var content = document.getElementById('entry-content');
   var progressFill = document.getElementById('entry-progress-fill');
@@ -314,7 +518,7 @@ function playEntryAnimation(messages, callback) {
   if (progressFill) progressFill.style.width = '0%';
   if (progressText) progressText.textContent = '0%';
   var elapsed = 0;
-  var totalTime = messages.length * 2000 + 1500;
+  var totalTime = 5000;
   var lastType = 0;
   var rafId = null;
   var typeCount = 0;
@@ -324,38 +528,55 @@ function playEntryAnimation(messages, callback) {
   var line = '';
   function typeNextChar() {
     if (complete) return;
-    if (msgIdx >= messages.length) { complete = true; return; }
-    if (charIdx === 0 && msgIdx > 0) {
-      // 间隔后开始下一条
-      setTimeout(function() { charIdx = 0; line = ''; typeNextChar(); }, 400);
-      msgIdx++;
+    if (msgIdx >= messages.length) {
+      // 所有消息打完 → 延迟触发 callback
+      complete = true;
+      if (progressFill) progressFill.style.width = '100%';
+      if (progressText) progressText.textContent = '100%';
+      setTimeout(function() {
+        cancelAnimationFrame(rafId);
+        // 恢复底部导航栏
+        var bottomNav = document.querySelector('.bottom-nav');
+        if (bottomNav) bottomNav.style.display = '';
+        callback && callback();
+      }, 400);
+      return;
+    }
+    if (waitingNext) {
+      // 消息间间隔，刚显示完上一条，等 400ms 后开始下一条
+      waitingNext = false;
+      charIdx = 0;
+      line = '';
+      setTimeout(typeNextChar, 400);
       return;
     }
     if (charIdx < messages[msgIdx].length) {
+      // 打字
       line += messages[msgIdx][charIdx];
       charIdx++;
       content.innerHTML = '<p>' + line + '<span class="blink-cursor">|</span></p>';
-      // 打字音效（限速）
       if (typeCount === 0 || (Date.now() - lastType > 80)) {
-        Sound.play('type');
+        try { Sound.play('type'); } catch(e) {}
         lastType = Date.now();
         typeCount = 0;
       }
       typeCount++;
       setTimeout(typeNextChar, 100);
     } else {
-      // 整条消息打完
+      // 当前消息打完
       content.innerHTML = '<p>' + line + '</p>';
       msgIdx++;
-      charIdx = 0;
-      line = '';
       if (msgIdx < messages.length) {
+        // 还有下一条：等 500ms 后进入下一条
+        waitingNext = true;
         setTimeout(typeNextChar, 500);
       } else {
-        complete = true;
+        // 全部打完
+        typeNextChar(); // 立即递归，会进入上面的 complete 块
       }
     }
   }
+  var waitingNext = false;
   typeNextChar();
   function animate(ts) {
     if (!startTime) startTime = ts;
@@ -363,15 +584,8 @@ function playEntryAnimation(messages, callback) {
     var pct = Math.min(100, Math.round((elapsed / totalTime) * 100));
     if (progressFill) progressFill.style.width = pct + '%';
     if (progressText) progressText.textContent = pct + '%';
-    if (elapsed < totalTime) {
+    if (elapsed < totalTime && !complete) {
       rafId = requestAnimationFrame(animate);
-    } else {
-      if (progressFill) progressFill.style.width = '100%';
-      if (progressText) progressText.textContent = '100%';
-      setTimeout(function() {
-        cancelAnimationFrame(rafId);
-        callback && callback();
-      }, 800);
     }
   }
   var startTime = null;
@@ -379,6 +593,64 @@ function playEntryAnimation(messages, callback) {
 }
 
 // ==================== 答题界面 ====================
+// ==================== v36 多题型答题引擎 ====================
+// 题目类型: 'choice'（选择题，默认）| 'truefalse'（判断题）| 'fill'（填空题）
+// 题目结构:
+//   choice:   { q: '...', options: [...], answer: 0 }
+//   truefalse: { q: '...', answer: true/false, explanation: '...' }
+//   fill:      { q: '...', answer: 'word', explanation: '...' }  // q中含占位符___会被替换
+
+// ==================== v38 单词点击发音（答题界面） ====================
+function initArticleClickToSpeak() {
+  var articleEl = document.getElementById('quiz-article');
+  if (!articleEl) return;
+  // 移除旧的事件监听器，防止重复绑定
+  articleEl.removeEventListener('click', handleArticleClick);
+  articleEl.addEventListener('click', handleArticleClick);
+}
+
+function handleArticleClick(e) {
+  // 如果点击的是词汇区的单词，已由 vocab-item-inline 处理，跳过
+  if (e.target.closest('.vocab-item-inline')) return;
+  var el = e.target;
+  // 向上找到最近的文字节点元素（span / strong / em 等，或纯文字节点包裹的父元素）
+  var textNode = findTextNode(el);
+  if (!textNode) return;
+  var word = getWordFromElement(el, textNode);
+  if (word && word.length > 1 && word.length <= 30) {
+    speakWord(word);
+  }
+}
+
+function findTextNode(el) {
+  // 向上最近包含文字的 DOM 元素
+  while (el && el !== document.body && el.id === 'quiz-article') el = el.parentElement;
+  if (!el || el === document.body) return null;
+  // 检查这个元素本身是否有文字内容
+  if (el.childNodes.length === 0) return null;
+  // 如果是文本节点直接返回
+  if (el.nodeType === Node.TEXT_NODE) return el;
+  // 返回元素本身（包含文字）
+  return el;
+}
+
+function getWordFromElement(el, textNode) {
+  // 优先取 data-word 属性
+  if (el.hasAttribute('data-word')) return el.getAttribute('data-word');
+  // 取 data-vword 属性
+  if (el.hasAttribute('data-vword')) return el.getAttribute('data-vword');
+  // 如果是词汇区的 emoji 按钮，不触发（vocab-item-inline 已处理）
+  if (el.classList && el.classList.contains('vocab-item-inline')) return null;
+  // 取 textContent
+  var text = el.textContent || '';
+  text = text.trim();
+  if (!text) return null;
+  // 取最后一个纯英文单词
+  var words = text.match(/[a-zA-Z]+/g);
+  if (!words || words.length === 0) return null;
+  return words[words.length - 1];
+}
+
 function renderQuestion() {
   var story = STORIES[currentLevel];
   if (!story || currentQuestionIndex >= story.questions.length) {
@@ -386,16 +658,76 @@ function renderQuestion() {
     return;
   }
   var q = story.questions[currentQuestionIndex];
+  var qType = q.type || 'choice'; // 默认选择题
+
   document.getElementById('quiz-level-info').innerHTML =
     '<span class="qlevel">' + (currentQuestionIndex + 1) + ' / ' + story.questions.length + '</span>';
-  var article = story.article || '';
+
+  // 显示文章（可点击英文单词发音）
+  var article = story.text || story.article || '';
   document.getElementById('quiz-article').innerHTML = '<div class="article-text">' + article + '</div>';
-  var qhtml = '<p class="qtext">' + q.question + '</p><div class="options">';
-  q.options.forEach(function(opt, i) {
-    qhtml += '<div class="option-btn" onclick="selectAnswer(' + i + ')">' + ('ABCDE')[i] + '. ' + opt + '</div>';
+  // v38 初始化文章点击发音
+  initArticleClickToSpeak();
+
+  // 显示词汇（点击发音）
+  var vocabHtml = '';
+  if (story.vocabulary && story.vocabulary.length > 0) {
+    vocabHtml = '<div class="quiz-vocab"><h4>📝 本关词汇（点击🔊发音）</h4><div class="vocab-grid">';
+    story.vocabulary.forEach(function(v) {
+      vocabHtml += '<div class="vocab-item-inline" data-vword="' + v.word + '">' +
+        '<span>🔊</span>' +
+        '<span class="vocab-text-sm">' + v.word + '</span>' +
+        '<span class="vocab-meaning-inline">' + v.meaning + '</span>' +
+        '</div>';
+    });
+    vocabHtml += '</div></div>';
+  }
+  document.getElementById('quiz-vocab-area').innerHTML = vocabHtml;
+  document.querySelectorAll('#quiz-vocab-area .vocab-item-inline').forEach(function(el) {
+    el.onclick = function() { var w = this.getAttribute('data-vword'); if (w) speakWord(w); };
   });
-  qhtml += '</div>';
-  document.getElementById('quiz-content').innerHTML = qhtml;
+
+  // 渲染题目（按类型）
+  var qText = q.q || q.question || '';
+  var html = '';
+
+  if (qType === 'choice') {
+    // 选择题：ABCDE 选项
+    html += '<p class="qtext">' + qText + '</p><div class="options">';
+    (q.options || []).forEach(function(opt, i) {
+      html += '<div class="option-btn" data-opt-idx="' + i + '">' + ('ABCDE')[i] + '. ' + opt + '</div>';
+    });
+    html += '</div>';
+  } else if (qType === 'truefalse') {
+    // 判断题
+    html += '<p class="qtext">' + qText + '</p><div class="options">';
+    html += '<div class="option-btn" data-opt-idx="1">A. 正确 (True)</div>';
+    html += '<div class="option-btn" data-opt-idx="0">B. 错误 (False)</div>';
+    html += '</div>';
+  } else if (qType === 'fill') {
+    // 填空题：把 ___ 替换为输入框
+    var filledText = qText.replace(/___+/g,
+      '<input type="text" class="fill-blank-input" id="fill-input" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="_____">'
+    );
+    html += '<p class="qtext fill-blank-container">' + filledText + '</p>';
+    html += '<div style="text-align:center;margin-top:16px;">' +
+      '<button class="option-btn" style="display:inline-block;width:auto;padding:12px 32px;background:#4a90d9;color:white;border-color:#4a90d9;" id="fill-submit-btn">确定答案</button>' +
+      '</div>';
+  }
+
+  document.getElementById('quiz-content').innerHTML = html;
+
+  // 绑定答题事件（innerHTML 不会执行 <script>，改用 eval）
+  if (qType === 'choice' || qType === 'truefalse') {
+    try {
+      eval('document.querySelectorAll(".option-btn[data-opt-idx]").forEach(function(b){b.onclick=function(){selectAnswer(parseInt(this.getAttribute("data-opt-idx")));};});');
+    } catch(e) {}
+  } else if (qType === 'fill') {
+    try {
+      eval('(function(){var fillBtn=document.getElementById("fill-submit-btn");if(fillBtn){fillBtn.onclick=function(){var val=document.getElementById("fill-input");if(val){selectAnswer(val.value.trim());}}};var fillInp=document.getElementById("fill-input");if(fillInp){fillInp.onkeydown=function(e){if(e.key==="Enter"){selectAnswer(this.value.trim());}};fillInp.focus();}})();');
+    } catch(e) {}
+  }
+
   // 进度点
   var dotsHtml = '';
   for (var i = 0; i < story.questions.length; i++) {
@@ -410,47 +742,262 @@ function renderQuestion() {
 // 朗读文章
 function readArticle() {
   Sound.play('read');
-  var article = STORIES[currentLevel].article || '';
+  var story = STORIES[currentLevel];
+  var article = story.text || story.article || '';
   if (!article) return;
   var text = article.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-  // 降级：Web Speech API
+  
+  // 优先使用 Capacitor TTS 插件（Android/iOS 原生）
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech) {
+    Capacitor.Plugins.TextToSpeech.speak({
+      text: text,
+      lang: 'en-US',
+      rate: 0.9,
+      pitch: 1.0,
+      volume: 1.0
+    }).catch(function(e) {
+      console.log('Capacitor TTS failed, fallback to Web Speech API', e);
+      webSpeak(text);
+    });
+  } else {
+    webSpeak(text);
+  }
+}
+
+// 全屏阅读文章
+function toggleFullscreenArticle() {
+  var articleEl = document.getElementById('quiz-article');
+  var overlay = document.getElementById('fullscreen-article-overlay');
+  if (!articleEl) return;
+  
+  if (_isFullscreenArticle) {
+    // 退出全屏
+    if (overlay) overlay.remove();
+    _isFullscreenArticle = false;
+    return;
+  }
+  
+  // 进入全屏
+  _isFullscreenArticle = true;
+  var story = STORIES[currentLevel];
+  var article = story.text || story.article || '';
+  var title = story.titleCN || story.title || '';
+  
+  overlay = document.createElement('div');
+  overlay.id = 'fullscreen-article-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#fff8e1;z-index:999;display:flex;flex-direction:column;padding:16px;overflow-y:auto;';
+  overlay.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;">' +
+      '<h3 style="color:#4a3728;font-size:1.1em;flex:1;">' + title + '</h3>' +
+      '<button onclick="toggleFullscreenArticle()" style="background:#4a3728;color:white;border:none;border-radius:8px;padding:8px 16px;font-size:0.9em;cursor:pointer;">返回答题</button>' +
+    '</div>' +
+    '<div style="font-size:1.15em;color:#5d4037;line-height:2;flex:1;overflow-y:auto;">' + article + '</div>' +
+    '<div style="flex-shrink:0;text-align:center;padding:8px 0;margin-top:8px;">' +
+      '<button onclick="readArticle()" style="background:#ff9800;color:white;border:none;border-radius:8px;padding:8px 20px;font-size:0.9em;cursor:pointer;">🔊 朗读全文</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+// Web Speech API 降级函数
+function webSpeak(text) {
   var sp = window.speechSynthesis;
-  if (!sp) return;
+  if (!sp) {
+    alert('您的设备不支持语音朗读');
+    return;
+  }
   sp.cancel();
   var u = new SpeechSynthesisUtterance(text);
   u.lang = 'en-US';
   u.rate = 0.9;
-  sp.speak(u);
+  var voices = sp.getVoices();
+  if (voices.length === 0) {
+    sp.onvoiceschanged = function() {
+      voices = sp.getVoices();
+      var enVoice = voices.find(function(v) { return v.lang.indexOf('en') === 0; });
+      if (enVoice) u.voice = enVoice;
+      sp.speak(u);
+    };
+  } else {
+    var enVoice = voices.find(function(v) { return v.lang.indexOf('en') === 0; });
+    if (enVoice) u.voice = enVoice;
+    sp.speak(u);
+  }
 }
 
-function selectAnswer(index) {
+// v36 selectAnswer：支持选择题/判断题/填空题 + 错题收集 + 答题反馈
+function selectAnswer(userInput) {
   var story = STORIES[currentLevel];
   var q = story.questions[currentQuestionIndex];
-  var correct = index === q.correct;
+  var qType = q.type || 'choice';
+
+  var correct = false;
+  var correctDisplay = '';
+  var userDisplay = '';
+  var options = [];
+
+  if (qType === 'choice' || qType === 'truefalse') {
+    // 选择/判断题：index 是选项序号
+    var idx = parseInt(userInput);
+    var correctIdx = (q.answer !== undefined) ? q.answer : q.correct;
+    correct = (idx === Number(correctIdx));
+
+    // 选项展示文字
+    if (qType === 'choice') {
+      options = q.options || [];
+      correctDisplay = ('ABCDE')[correctIdx] + '. ' + (options[correctIdx] || '');
+      userDisplay = ('ABCDE')[idx] + '. ' + (options[idx] || '');
+    } else {
+      options = ['错误 (False)', '正确 (True)'];
+      correctDisplay = Number(correctIdx) === 1 ? 'A. 正确 (True)' : 'B. 错误 (False)';
+      userDisplay = idx === 1 ? 'A. 正确 (True)' : 'B. 错误 (False)';
+    }
+
+    // 高亮选项
+    var opts = document.querySelectorAll('.option-btn');
+    opts.forEach(function(opt, i) {
+      opt.onclick = null;
+      if (qType === 'choice') {
+        if (i === correctIdx) opt.classList.add('correct');
+        else if (i === idx && !correct) opt.classList.add('wrong');
+      } else {
+        // truefalse: idx1=A(正确), idx0=B(错误)
+        if (i === correctIdx) opt.classList.add('correct');
+        else if (i === idx && !correct) opt.classList.add('wrong');
+      }
+    });
+
+  } else if (qType === 'fill') {
+    // 填空题：userInput 是填入的文字
+    var correctAns = (q.answer || '').toLowerCase().trim();
+    var userAns = (userInput || '').toLowerCase().trim();
+    correct = (userAns === correctAns);
+    correctDisplay = correctAns;
+    userDisplay = userAns;
+
+    var inp = document.getElementById('fill-input');
+    if (inp) {
+      inp.readOnly = true;
+      inp.onkeydown = null;
+      inp.value = correctAns + (correct ? '' : ' ← 你的: ' + userAns);
+      inp.classList.add(correct ? 'correct' : 'wrong');
+    }
+    var fillBtn = document.getElementById('fill-submit-btn');
+    if (fillBtn) fillBtn.style.display = 'none';
+  }
+
   answers.push(correct);
-  selectedAnswers.push(index);
+  selectedAnswers.push(userInput);
   Sound.play(correct ? 'win' : 'fail');
-  // 显示结果
-  var opts = document.querySelectorAll('.option-btn');
-  opts.forEach(function(opt, i) {
-    opt.onclick = null;
-    if (i === q.correct) opt.classList.add('correct');
-    else if (i === index && !correct) opt.classList.add('wrong');
-  });
-  // 1.5秒后下一题
-  setTimeout(function() {
+
+  // === 答错：收集到错题本 + 加入词汇本 ===
+  if (!correct) {
+    var explanation = q.explanation || '';
+    Storage.addWrongAnswer(
+      currentLevel,
+      q,
+      userDisplay,
+      correctDisplay,
+      options,
+      explanation
+    );
+    // 随机把一个生词加入词汇本
+    if (story.vocabulary && story.vocabulary.length > 0) {
+      var randomVocab = story.vocabulary[Math.floor(Math.random() * story.vocabulary.length)];
+      Storage.addVocab(randomVocab.word, randomVocab.meaning);
+      Storage.markVocabForReview(randomVocab.word);
+    }
+  }
+
+  // === v36 答题反馈：显示正确答案 + 中文解析 ===
+  var feedbackHtml = '';
+  if (!correct) {
+    feedbackHtml = '<div class="qa-feedback">' +
+      '<div class="qa-wrong-text">❌ 你的答案：' + userDisplay + '</div>' +
+      '<div class="qa-correct-text">✅ 正确答案：' + correctDisplay + '</div>';
+    if (q.explanation) {
+      feedbackHtml += '<div class="qa-explanation">📖 解析：' + q.explanation + '</div>';
+    }
+    feedbackHtml += '</div>';
+  } else {
+    feedbackHtml = '<div class="qa-feedback" style="border-left-color:#4CAF50;background:#e8f5e9;">' +
+      '<div class="qa-correct-text" style="font-size:1em;">✅ 正确！</div></div>';
+  }
+
+  // 插入反馈（追加到 quiz-content 底部）
+  var quizContent = document.getElementById('quiz-content');
+  if (quizContent) {
+    quizContent.innerHTML += feedbackHtml;
+    quizContent.scrollTop = quizContent.scrollHeight;
+  }
+
+  // 自动进入下一题（暂停时延迟执行）
+  var delay = correct ? 1200 : 2500; // 答对快一点，答错给时间看解析
+  _nextQuestionTimer = setTimeout(function() {
+    if (_isPaused) {
+      // 暂停中，等恢复后再跳转
+      _pendingNextQuestion = true;
+      return;
+    }
     currentQuestionIndex++;
     if (currentQuestionIndex >= story.questions.length) {
       finishLevel();
     } else {
       renderQuestion();
     }
-  }, 1500);
+  }, delay);
 }
 
 function skipQuiz() {
   currentQuestionIndex = story.questions.length;
   finishLevel();
+}
+
+// ==================== v37 暂停功能 ====================
+
+function togglePause() {
+  if (!_isPaused) {
+    // 暂停
+    _isPaused = true;
+    var overlay = document.createElement('div');
+    overlay.id = 'pause-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+    overlay.innerHTML =
+      '<div style="text-align:center;">' +
+        '<div style="font-size:48px;margin-bottom:16px;">⏸️</div>' +
+        '<div style="color:#fff;font-size:1.5em;font-weight:bold;margin-bottom:24px;">已暂停</div>' +
+        '<button onclick="togglePause()" style="background:#4CAF50;color:white;border:none;border-radius:24px;padding:14px 40px;font-size:1.1em;cursor:pointer;margin:8px;">▶️ 继续答题</button>' +
+        '<button onclick="quitFromPause()" style="background:#f44336;color:white;border:none;border-radius:24px;padding:14px 40px;font-size:1.1em;cursor:pointer;margin:8px;">🚪 退出本关</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    // 暂停语音朗读
+    if (window.speechSynthesis) window.speechSynthesis.pause();
+  } else {
+    // 恢复
+    _isPaused = false;
+    var overlay = document.getElementById('pause-overlay');
+    if (overlay) overlay.remove();
+    // 恢复语音朗读
+    if (window.speechSynthesis) window.speechSynthesis.resume();
+    // 如果暂停时有待跳转的下一题，现在执行
+    if (_pendingNextQuestion) {
+      _pendingNextQuestion = false;
+      var story = STORIES[currentLevel];
+      currentQuestionIndex++;
+      if (currentQuestionIndex >= story.questions.length) {
+        finishLevel();
+      } else {
+        renderQuestion();
+      }
+    }
+  }
+}
+
+function quitFromPause() {
+  _isPaused = false;
+  var overlay = document.getElementById('pause-overlay');
+  if (overlay) overlay.remove();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  showScreen('level-map');
 }
 
 // ==================== 完成关卡 ====================
@@ -468,6 +1015,12 @@ function finishLevel() {
     Storage.setLevelProgress(currentLevel, { passed: true, score: score, stars: stars });
     Storage.addScore(score);
   }
+  // ===== 金币奖励 =====
+  var coinsEarned = 0;
+  if (passed) {
+    coinsEarned = stars * 10; // 1星=10, 2星=20, 3星=30
+    Storage.addCoins(coinsEarned);
+  }
   // 救小鸡
   var chickIdx = RESCUE_LEVELS.indexOf(currentLevel);
   var rescuedChick = false;
@@ -479,21 +1032,32 @@ function finishLevel() {
       Sound.play('rescue');
     }
   }
-  // 保存到服务器
+  // ===== 问题4修复：保存到服务器（包括排行榜更新） =====
   if (Storage.isLoggedIn()) {
     syncToServer();
   }
-  showLevelResult(score, stars, passed, rescuedChick, chickIdx);
+  // v37 检查成就
+  var newlyUnlocked = Storage.checkAchievements();
+  showLevelResult(score, stars, passed, rescuedChick, chickIdx, coinsEarned);
+  if (newlyUnlocked.length > 0) {
+    showAchievementToast(newlyUnlocked);
+  }
 }
 
-function showLevelResult(score, stars, passed, rescuedChick, chickIdx) {
+function showLevelResult(score, stars, passed, rescuedChick, chickIdx, coinsEarned) {
   showScreen('level-result');
   document.getElementById('result-stars').innerHTML = passed ? '⭐'.repeat(stars) : '差一点点！💪';
+  var coinsDisplay = '';
+  if (passed && coinsEarned > 0) {
+    coinsDisplay = '<p style="color:#FFD700;font-size:1.1em;margin-top:8px;">💰 获得金币 +' + coinsEarned + '</p>';
+  } else if (!passed) {
+    coinsDisplay = '<p style="color:#999;font-size:1em;margin-top:8px;">三星通关获得金币奖励哦 💰</p>';
+  }
   var msg = passed ? '🎉 过关！' : '💪 加油！需要三星才能过关哦！';
   if (score >= 100) msg = '🌟 太棒了！满分通关！';
   else if (score >= 80) msg = '👍 差一点！再细心一点！';
   else if (score >= 60) msg = '💪 加油！多练习就能三星！';
-  document.getElementById('result-msg').innerHTML = msg;
+  document.getElementById('result-msg').innerHTML = msg + coinsDisplay;
   document.getElementById('result-score').innerHTML = '得分：' + score + '%（' + answers.filter(function(a) { return a; }).length + '/' + answers.length + '）';
   var nextBtn = document.getElementById('next-level-btn');
   if (nextBtn) {
@@ -520,13 +1084,24 @@ function showLevelResult(score, stars, passed, rescuedChick, chickIdx) {
       };
     }
   }
-  // 救援动画
   if (rescuedChick) {
     var savedCount = Storage.getChicksSaved();
     var remaining = 10 - savedCount;
     document.getElementById('result-msg').innerHTML +=
       '<p style="color:#4CAF50;font-size:1.2em;margin-top:10px;">🐤 第 ' + (chickIdx + 1) + ' 只小鸡已救回！</p>' +
       '<p style="color:#ff6b6b;">还差 ' + remaining + ' 只，继续加油！</p>';
+  }
+  
+  // v37 语法小贴士
+  var story = STORIES[currentLevel];
+  if (story && story.grammarTips && story.grammarTips.length > 0) {
+    var tipsHtml = '<div class="grammar-tips-card"><h4>📚 本关语法小贴士</h4>';
+    story.grammarTips.forEach(function(tip) {
+      tipsHtml += '<div class="grammar-tip-item"><span class="grammar-tip-title">' + tip.title + '</span><span class="grammar-tip-content">' + tip.content + '</span></div>';
+    });
+    tipsHtml += '</div>';
+    var resultMsg = document.getElementById('result-msg');
+    if (resultMsg) resultMsg.innerHTML += tipsHtml;
   }
 }
 
@@ -540,95 +1115,718 @@ function retryLevel() {
 // ==================== 同步数据到服务器 ====================
 function syncToServer() {
   if (!Storage.isLoggedIn()) return;
-  var data = Storage.getAllProgress();
-  var totalStars = 0;
-  (data.progress || []).forEach(function(p) { if (p && p.stars) totalStars += p.stars; });
-  submitScore( data.totalScore, totalStars, data.chicksSaved, data.progress)
-    .then(function(r) {
-      if (r.success) console.log('Score synced:', r);
-    })
+  var prog = Storage.get(Storage.KEYS.PROGRESS) || [];
+  var starsPerLevel = prog.map(function(p) { return p ? (p.stars || 0) : 0; });
+  submitScore(starsPerLevel)
+    .then(function(r) { if (r && r.success) console.log('Synced: ' + r.totalStars + ' stars'); })
     .catch(function(e) { console.log('Sync failed:', e); });
 }
 
-// ==================== 小鸡花园 ====================
+// ==================== 小鸡花园2.0（v36 起名/喂食/换装） ====================
+// 商店物品定义
+var SHOP_ITEMS = {
+  // 食物
+  food: [
+    { id: 'millet', name: '小米', emoji: '🌾', price: 5, hunger: 20, desc: '小鸡最爱的主食' },
+    { id: 'corn', name: '玉米粒', emoji: '🌽', price: 10, hunger: 50, desc: '营养丰富的零食' },
+    { id: 'worm', name: '小虫子', emoji: '🐛', price: 20, hunger: 80, desc: '高蛋白美味' }
+  ],
+  // 装扮
+  costumes: [
+    { id: 'hat_red', name: '小红帽', emoji: '🎀', price: 20, desc: '可爱的红色帽子' },
+    { id: 'hat_party', name: '派对帽', emoji: '🎉', price: 25, desc: '生日派对必备' },
+    { id: 'glasses', name: '酷墨镜', emoji: '😎', price: 15, desc: '帅气逼人' },
+    { id: 'scarf', name: '围巾', emoji: '🧣', price: 30, desc: '温暖又时尚' },
+    { id: 'bow', name: '蝴蝶结', emoji: '🎗️', price: 18, desc: '优雅的小装饰' },
+    { id: 'crown', name: '小皇冠', emoji: '👑', price: 50, desc: '小鸡之王' }
+  ]
+};
+
 function renderGarden() {
+  var container = document.getElementById('garden-grid');
   var chicks = Storage.get(Storage.KEYS.CHICKS) || Array(10).fill(false);
-  var html = '<h2 class="garden-title">小鸡花园 🐤</h2>';
-  html += '<p class="garden-hint">点击已救回的小鸡打招呼！</p>';
-  html += '<div class="garden-grid">';
-  var phrases = [
-    '谢谢英雄！🐤',
-    '你是最棒的！⭐',
-    '好开心！🎉',
-    '加油加油！💪',
-    '爱你哟！❤️',
-    '太厉害啦！👏',
-    '拯救小鸡！🏆',
-    '英雄无敌！🦸',
-    '继续努力！🌟',
-    '太棒了！👍'
-  ];
-  chicks.forEach(function(c, i) {
-    var cls = c ? 'garden-chick rescued' : 'garden-chick missing';
-    var phrase = c ? phrases[i % phrases.length] : '🔒 第' + (i+1) + '只待救';
-    html += '<div class="' + cls + '"' + (c ? ' onclick="thankHero(' + i + ')">' + phrase : '>🔒') + '</div>';
+  var rescued = chicks.filter(function(c) { return c; }).length;
+  var coins = Storage.getCoins();
+  
+  // 顶部信息栏
+  var countEl = document.getElementById('garden-count');
+  if (countEl) {
+    countEl.innerHTML = '🐤 已救回 ' + rescued + ' / 10 只 <span style="margin-left:12px;">💰 ' + coins + '</span>';
+    countEl.style.display = 'block';
+  }
+  
+  // 添加商店按钮
+  var headerEl = document.querySelector('#garden header');
+  if (headerEl && !document.getElementById('garden-shop-btn')) {
+    var shopBtn = document.createElement('button');
+    shopBtn.id = 'garden-shop-btn';
+    shopBtn.className = 'garden-shop-btn';
+    shopBtn.innerHTML = '🛒';
+    shopBtn.onclick = function() { openGardenShop(); };
+    headerEl.appendChild(shopBtn);
+  }
+  
+  container.innerHTML = '';
+  CHICKS.forEach(function(chick, index) {
+    var state = Storage.getChickState(index);
+    var card = document.createElement('div');
+    card.className = 'chick-card' + (chicks[index] ? ' rescued' : ' locked');
+    
+    if (chicks[index]) {
+      // 显示饱食度条
+      var hungerBar = '<div class="hunger-bar"><div class="hunger-fill" style="width:' + (state.hunger || 100) + '%"></div></div>';
+      var hungerText = state.hunger >= 80 ? '😊' : state.hunger >= 50 ? '😐' : '😢';
+      // 显示装扮
+      var costumeEmoji = state.costume ? (SHOP_ITEMS.costumes.find(function(c) { return c.id === state.costume; }) || {}).emoji : '';
+      
+      // 装扮叠加层：根据装扮类型放到不同位置
+      var costumeOverlay = '';
+      if (state.costume) {
+        var costumeItem = SHOP_ITEMS.costumes.find(function(c) { return c.id === state.costume; });
+        if (costumeItem) {
+          var pos = 'costume-hat'; // 默认帽子位置
+          if (state.costume === 'glasses') pos = 'costume-face';
+          else if (state.costume === 'scarf') pos = 'costume-neck';
+          else if (state.costume === 'bow') pos = 'costume-hat';
+          costumeOverlay = '<span class="costume-overlay ' + pos + '">' + costumeItem.emoji + '</span>';
+        }
+      }
+      
+      card.innerHTML =
+        '<div class="chick-avatar chick-bounce" style="background:' + chick.color + ';">' + 
+          chick.emoji + 
+          costumeOverlay +
+        '</div>' +
+        '<div class="chick-name">' + (state.name || chick.name) + '</div>' +
+        '<div class="chick-hunger">' + hungerText + ' ' + (state.hunger || 100) + '%</div>' +
+        hungerText +
+        '<div class="chick-actions">' +
+          '<button class="chick-action-btn" data-action="rename" data-idx="' + index + '">✏️</button>' +
+          '<button class="chick-action-btn" data-action="feed" data-idx="' + index + '">🍖</button>' +
+          '<button class="chick-action-btn" data-action="costume" data-idx="' + index + '">👕</button>' +
+          '<button class="chick-action-btn" data-action="talk" data-idx="' + index + '">💬</button>' +
+        '</div>';
+    } else {
+      card.innerHTML =
+        '<div class="chick-avatar" style="background:#e0e0e0;font-size:44px;color:#aaa;display:flex;align-items:center;justify-content:center;border-radius:50%;width:56px;height:56px;margin:0 auto 8px;">🔒</div>' +
+        '<div class="chick-name" style="color:#999;">???</div>' +
+        '<div class="chick-level">通过第 ' + chick.rescueLevel + ' 关救回</div>';
+    }
+    container.appendChild(card);
   });
-  html += '</div>';
-  html += '<p class="garden-progress">已救回：' + chicks.filter(function(c) { return c; }).length + ' / 10 只</p>';
-  document.getElementById('garden-content').innerHTML = html;
+  
+  // 绑定按钮事件
+  container.querySelectorAll('.chick-action-btn').forEach(function(btn) {
+    btn.onclick = function(e) {
+      e.stopPropagation();
+      var action = this.dataset.action;
+      var idx = parseInt(this.dataset.idx);
+      handleChickAction(action, idx);
+    };
+  });
+  
   updateUserDisplay();
 }
 
-function thankHero(chickIdx) {
-  var phrases = [
-    '谢谢英雄！🐤',
-    '你是最棒的！⭐',
-    '好开心！🎉',
-    '加油加油！💪',
-    '爱你哟！❤️',
-    '太厉害啦！👏',
-    '拯救小鸡！🏆',
-    '英雄无敌！🦸',
-    '继续努力！🌟',
-    '太棒了！👍'
-  ];
-  var phrase = phrases[chickIdx % phrases.length];
-  alert(phrase);
-  // TTS 朗读
-  try {
-    var sp = window.speechSynthesis;
-    if (sp) {
-      sp.cancel();
-      var u = new SpeechSynthesisUtterance(phrase.replace(/[🐤⭐🎉💪❤️👏🏆🦸🌟👍🔒]/g, ''));
-      u.lang = 'zh-CN';
-      u.rate = 1.0;
-      sp.speak(u);
-    }
-  } catch(e) {}
+function handleChickAction(action, index) {
+  switch (action) {
+    case 'rename':
+      var currentName = Storage.getChickState(index).name || CHICKS[index].name;
+      var newName = prompt('给小鸡起个名字（最多8个字）：', currentName);
+      if (newName && newName.trim()) {
+        Storage.setChickName(index, newName.trim());
+        renderGarden();
+      }
+      break;
+    case 'feed':
+      openFeedModal(index);
+      break;
+    case 'costume':
+      openCostumeModal(index);
+      break;
+    case 'talk':
+      var chick = CHICKS[index];
+      thankHero(chick.name, chick.action);
+      break;
+  }
 }
 
-// ==================== 词汇本 ====================
+function openFeedModal(index) {
+  var state = Storage.getChickState(index);
+  var coins = Storage.getCoins();
+  
+  var html = '<div class="modal-overlay" id="feed-modal" onclick="if(event.target===this)this.remove()">' +
+    '<div class="modal-box">' +
+      '<h3>🍖 喂食 ' + (state.name || CHICKS[index].name) + '</h3>' +
+      '<p style="color:#888;margin:8px 0;">当前饱食度: ' + (state.hunger || 100) + '%</p>' +
+      '<p style="color:#888;margin-bottom:16px;">💰 你的金币: ' + coins + '</p>' +
+      '<div class="shop-items">';
+  
+  SHOP_ITEMS.food.forEach(function(item) {
+    var canBuy = coins >= item.price;
+    html += '<div class="shop-item ' + (canBuy ? '' : 'disabled') + '" data-type="food" data-id="' + item.id + '" data-idx="' + index + '">' +
+      '<span class="shop-emoji">' + item.emoji + '</span>' +
+      '<div class="shop-info">' +
+        '<div class="shop-name">' + item.name + '</div>' +
+        '<div class="shop-desc">+' + item.hunger + ' 饱食度</div>' +
+      '</div>' +
+      '<div class="shop-price">💰' + item.price + '</div>' +
+    '</div>';
+  });
+  
+  html += '</div><button class="modal-close" onclick="document.getElementById(\'feed-modal\').remove()">关闭</button></div></div>';
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+  
+  // 绑定购买事件
+  document.querySelectorAll('#feed-modal .shop-item:not(.disabled)').forEach(function(el) {
+    el.onclick = function() {
+      var foodId = this.dataset.id;
+      var idx = parseInt(this.dataset.idx);
+      buyAndFeed(idx, foodId);
+    };
+  });
+}
+
+function buyAndFeed(index, foodId) {
+  var food = SHOP_ITEMS.food.find(function(f) { return f.id === foodId; });
+  if (!food) return;
+  
+  if (!Storage.spendCoins(food.price)) {
+    alert('金币不足！');
+    return;
+  }
+  
+  Storage.feedChick(index, food.hunger);
+  document.getElementById('feed-modal') && document.getElementById('feed-modal').remove();
+  renderGarden();
+  showToast('喂食成功！' + food.emoji);
+}
+
+function openCostumeModal(index) {
+  var state = Storage.getChickState(index);
+  var coins = Storage.getCoins();
+  
+  var html = '<div class="modal-overlay" id="costume-modal" onclick="if(event.target===this)this.remove()">' +
+    '<div class="modal-box">' +
+      '<h3>👕 给 ' + (state.name || CHICKS[index].name) + ' 换装</h3>' +
+      '<p style="color:#888;margin-bottom:16px;">💰 你的金币: ' + coins + '</p>' +
+      '<div class="shop-items">';
+  
+  SHOP_ITEMS.costumes.forEach(function(item) {
+    var owned = state.costume === item.id;
+    var canBuy = coins >= item.price;
+    html += '<div class="shop-item ' + (owned ? 'owned' : (canBuy ? '' : 'disabled')) + '" data-type="costume" data-id="' + item.id + '" data-idx="' + index + '">' +
+      '<span class="shop-emoji">' + item.emoji + '</span>' +
+      '<div class="shop-info">' +
+        '<div class="shop-name">' + item.name + '</div>' +
+        '<div class="shop-desc">' + item.desc + '</div>' +
+      '</div>' +
+      (owned ? '<div class="shop-owned">已装备</div>' : '<div class="shop-price">💰' + item.price + '</div>') +
+    '</div>';
+  });
+  
+  html += '</div><button class="modal-close" onclick="document.getElementById(\'costume-modal\').remove()">关闭</button></div></div>';
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+  
+  // 绑定购买/装备事件
+  document.querySelectorAll('#costume-modal .shop-item:not(.disabled)').forEach(function(el) {
+    el.onclick = function() {
+      var costumeId = this.dataset.id;
+      var idx = parseInt(this.dataset.idx);
+      buyOrEquipCostume(idx, costumeId);
+    };
+  });
+}
+
+function buyOrEquipCostume(index, costumeId) {
+  var state = Storage.getChickState(index);
+  var costume = SHOP_ITEMS.costumes.find(function(c) { return c.id === costumeId; });
+  if (!costume) return;
+  
+  // 已拥有则直接装备
+  if (state.costume === costumeId) {
+    return;
+  }
+  
+  // 购买并装备
+  if (!Storage.spendCoins(costume.price)) {
+    alert('金币不足！');
+    return;
+  }
+  
+  Storage.setChickCostume(index, costumeId);
+  document.getElementById('costume-modal') && document.getElementById('costume-modal').remove();
+  renderGarden();
+  showToast('购买并装备成功！' + costume.emoji);
+}
+
+function openGardenShop() {
+  var coins = Storage.getCoins();
+  
+  var html = '<div class="modal-overlay" id="garden-shop-modal" onclick="if(event.target===this)this.remove()">' +
+    '<div class="modal-box" style="max-width:340px;">' +
+      '<h3>🛒 花园商店</h3>' +
+      '<p style="color:#888;margin-bottom:16px;">💰 你的金币: ' + coins + '</p>' +
+      '<div style="display:flex;gap:8px;margin-bottom:16px;">' +
+        '<button class="shop-tab active" data-tab="food" onclick="switchShopTab(\'food\')">🍖 食物</button>' +
+        '<button class="shop-tab" data-tab="costumes" onclick="switchShopTab(\'costumes\')">👕 装扮</button>' +
+      '</div>' +
+      '<div class="shop-items" id="shop-items-container"></div>' +
+      '<button class="modal-close" onclick="document.getElementById(\'garden-shop-modal\').remove()">关闭</button>' +
+    '</div></div>';
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+  renderShopItems('food');
+}
+
+function renderShopItems(type) {
+  var container = document.getElementById('shop-items-container');
+  if (!container) return;
+  
+  var items = SHOP_ITEMS[type] || [];
+  var html = '';
+  
+  if (type === 'food') {
+    // 食物：点击后选择投喂的小鸡
+    items.forEach(function(item) {
+      html += '<div class="shop-item-preview" onclick="selectChickToFeed(\'' + item.id + '\')">' +
+        '<span class="shop-emoji">' + item.emoji + '</span>' +
+        '<div class="shop-info">' +
+          '<div class="shop-name">' + item.name + '</div>' +
+          '<div class="shop-desc">' + (item.desc || '') + '</div>' +
+        '</div>' +
+        '<div class="shop-price">💰' + item.price + '</div>' +
+      '</div>';
+    });
+  } else {
+    // 装扮：点击后选择装扮的小鸡
+    items.forEach(function(item) {
+      html += '<div class="shop-item-preview" onclick="selectChickForCostume(\'' + item.id + '\')">' +
+        '<span class="shop-emoji">' + item.emoji + '</span>' +
+        '<div class="shop-info">' +
+          '<div class="shop-name">' + item.name + '</div>' +
+          '<div class="shop-desc">' + (item.desc || '') + '</div>' +
+        '</div>' +
+        '<div class="shop-price">💰' + item.price + '</div>' +
+      '</div>';
+    });
+  }
+  
+  container.innerHTML = html;
+}
+
+function switchShopTab(tab) {
+  document.querySelectorAll('.shop-tab').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  renderShopItems(tab);
+}
+
+// ===== 选择小鸡投喂 =====
+function selectChickToFeed(foodId) {
+  var chicks = Storage.get(Storage.KEYS.CHICKS) || [];
+  var rescuedIndices = [];
+  chicks.forEach(function(c, i) { if (c) rescuedIndices.push(i); });
+  
+  if (rescuedIndices.length === 0) {
+    alert('还没有救回小鸡，无法投喂！');
+    return;
+  }
+  
+  var html = '<div class="modal-overlay" id="feed-select-modal" onclick="if(event.target===this)this.remove()">' +
+    '<div class="modal-box" style="max-width:320px;">' +
+      '<h3>🍖 选择投喂的小鸡</h3>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:16px 0;">';
+  
+  var food = SHOP_ITEMS.food.find(function(f) { return f.id === foodId; });
+  
+  rescuedIndices.forEach(function(idx) {
+    var state = Storage.getChickState(idx);
+    html += '<button onclick="buyAndFeed(' + idx + ',\'' + foodId + '\')" style="width:80px;padding:12px 8px;border:none;background:#fff;border-radius:12px;box-shadow:0 2px8px rgba(0,0,0,0.1);cursor:pointer;">' +
+      '<div style="font-size:28px;">' + CHICKS[idx].emoji + '</div>' +
+      '<div style="font-size:12px;color:#666;margin-top:4px;">' + (state.name || CHICKS[idx].name) + '</div>' +
+      '<div style="font-size:10px;color:#888;margin-top:2px;">饱食度 ' + (state.hunger || 100) + '%</div>' +
+    '</button>';
+  });
+  
+  html += '</div><button class="modal-close" onclick="document.getElementById(\'feed-select-modal\').remove()">取消</button></div></div>';
+  
+  document.getElementById('garden-shop-modal') && document.getElementById('garden-shop-modal').remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// ===== 选择小鸡换装 =====
+function selectChickForCostume(costumeId) {
+  var chicks = Storage.get(Storage.KEYS.CHICKS) || [];
+  var rescuedIndices = [];
+  chicks.forEach(function(c, i) { if (c) rescuedIndices.push(i); });
+  
+  if (rescuedIndices.length === 0) {
+    alert('还没有救回小鸡，无法换装！');
+    return;
+  }
+  
+  var html = '<div class="modal-overlay" id="costume-select-modal" onclick="if(event.target===this)this.remove()">' +
+    '<div class="modal-box" style="max-width:320px;">' +
+      '<h3>👕 选择换装的小鸡</h3>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:16px 0;">';
+  
+  var costume = SHOP_ITEMS.costumes.find(function(c) { return c.id === costumeId; });
+  
+  rescuedIndices.forEach(function(idx) {
+    var state = Storage.getChickState(idx);
+    html += '<button onclick="buyOrEquipCostume(' + idx + ',\'' + costumeId + '\')" style="width:80px;padding:12px 8px;border:none;background:#fff;border-radius:12px;box-shadow:0 2px8px rgba(0,0,0,0.1);cursor:pointer;">' +
+      '<div style="font-size:28px;">' + CHICKS[idx].emoji + '</div>' +
+      '<div style="font-size:12px;color:#666;margin-top:4px;">' + (state.name || CHICKS[idx].name) + '</div>' +
+    '</button>';
+  });
+  
+  html += '</div><button class="modal-close" onclick="document.getElementById(\'costume-select-modal\').remove()">取消</button></div></div>';
+  
+  document.getElementById('garden-shop-modal') && document.getElementById('garden-shop-modal').remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function thankHero(chickName, chickAction) {
+  var phrases = {
+    '走来走去': ['Thank you, brave hero!', 'You saved me!', 'You are my hero!'],
+    '吃小米': ['Thank you, hero!', 'I am so happy!', 'We love you!'],
+    '开心玩耍': ['You are the bravest hero!', 'Thank you for saving us!', 'We are safe because of you!'],
+    '晒太阳': ['Thank you so much!', 'You are amazing!', 'We love our hero!'],
+    '睡觉觉': ['Thank you, brave hero!', 'You saved us all!', 'We are forever grateful!'],
+    '唱歌': ['Thank you, hero!', 'You are a true hero!', 'We celebrate you!'],
+    '跳舞': ['Hero! Hero!', 'Thank you for rescuing us!', 'You are the best!'],
+    '看风景': ['Thank you, brave hero!', 'We are free because of you!', 'You are wonderful!'],
+    '做运动': ['Thank you, strong hero!', 'You saved the day!', 'We are so happy!'],
+    '荡秋千': ['You did it, hero!', 'We are free!', 'Thank you forever!']
+  };
+  var msgs = phrases[chickAction] || ['Thank you, hero!', 'You saved me!', 'I love you!'];
+  var msg = msgs[Math.floor(Math.random() * msgs.length)];
+  // 弹出对话气泡
+  var bubble = document.createElement('div');
+  bubble.className = 'chick-speech-bubble';
+  bubble.innerHTML =
+    '<div class="bubble-emoji">🐤</div>' +
+    '<div class="bubble-name">' + chickName + '</div>' +
+    '<div class="bubble-text">' + msg + '</div>' +
+    '<button class="bubble-close">关闭</button>';
+  document.body.appendChild(bubble);
+  bubble.querySelector('.bubble-close').onclick = function() {
+    bubble.remove();
+  };
+  // TTS 朗读英文
+  speakWord(msg);
+}
+
+// ==================== 词汇本（问题5修复：修复发音） ====================
 function renderVocab() {
   var vocab = Storage.getVocab() || [];
+  var mastery = Storage.getVocabMastery();
+  var dueWords = Storage.getDueReviewWords();
   var html = '<h2 class="vocab-title">词汇本 📖</h2>';
+  
+  // v37 掌握度统计
+  html += '<div class="vocab-mastery-bar">';
+  html += '<div class="mastery-stat"><span class="mastery-num mastered">' + mastery.mastered + '</span><span class="mastery-label">已掌握</span></div>';
+  html += '<div class="mastery-stat"><span class="mastery-num learning">' + mastery.learning + '</span><span class="mastery-label">学习中</span></div>';
+  html += '<div class="mastery-stat"><span class="mastery-num new-word">' + mastery.newWords + '</span><span class="mastery-label">新词</span></div>';
+  html += '<div class="mastery-stat"><span class="mastery-num total">' + mastery.total + '</span><span class="mastery-label">总计</span></div>';
+  html += '</div>';
+  
+  // v37 复习入口
+  if (dueWords.length > 0) {
+    html += '<button class="review-start-btn" id="start-review-btn">🔄 复习 ' + dueWords.length + ' 个待复习词汇</button>';
+  } else if (vocab.length > 0) {
+    html += '<div class="review-ok-msg">✅ 今日复习已完成，明天再来吧！</div>';
+  }
+  
   if (vocab.length === 0) {
     html += '<p style="text-align:center;padding:40px;color:#888;">答题过程中遇到的生词会保存在这里～</p>';
   } else {
-    html += '<p style="color:#888;font-size:0.9em;margin-bottom:12px;">共 ' + vocab.length + ' 个词汇</p>';
+    var reviews = Storage.getVocabReview();
+    html += '<p style="color:#888;font-size:0.9em;margin-bottom:12px;">共 ' + vocab.length + ' 个词汇（点击🔊发音）</p>';
     html += '<div class="vocab-list">';
-    vocab.forEach(function(v) {
-      html += '<div class="vocab-item">' +
-        '<div class="vocab-word"><span onclick="speakWord(\'' + v.word + '\')">🔊</span> ' + v.word + '</div>' +
-        '<div class="vocab-meaning">' + v.meaning + '</div></div>';
+    vocab.forEach(function(v, idx) {
+      var r = reviews[v.word];
+      var levelBadge = '';
+      if (!r || r.level === 0) {
+        levelBadge = '<span class="vocab-level-badge new">新</span>';
+      } else if (r.level >= 5) {
+        levelBadge = '<span class="vocab-level-badge mastered">熟</span>';
+      } else {
+        levelBadge = '<span class="vocab-level-badge learning">学</span>';
+      }
+      html += '<div class="vocab-item" data-vocab-idx="' + idx + '">' +
+        '<div class="vocab-word">' +
+          '<span class="vocab-speak-btn" data-word="' + v.word + '">🔊</span> ' +
+          '<span class="vocab-text">' + v.word + '</span>' +
+          levelBadge +
+        '</div>' +
+        '<div class="vocab-meaning">' + v.meaning + '</div>' +
+        '</div>';
     });
     html += '</div>';
   }
   document.getElementById('vocab-content').innerHTML = html;
+  
+  // 绑定发音事件
+  document.querySelectorAll('.vocab-speak-btn').forEach(function(btn) {
+    btn.onclick = function(e) {
+      e.stopPropagation();
+      var word = this.getAttribute('data-word');
+      if (word) speakWord(word);
+    };
+  });
+  
+  // v37 绑定复习按钮
+  var reviewBtn = document.getElementById('start-review-btn');
+  if (reviewBtn) {
+    reviewBtn.onclick = function() { startVocabReview(); };
+  }
+  
   updateUserDisplay();
 }
 
+// ==================== v37 词汇复习模式 ====================
+var _reviewWords = [];
+var _reviewIndex = 0;
+var _reviewScore = 0;
+
+function startVocabReview() {
+  _reviewWords = Storage.getDueReviewWords();
+  if (_reviewWords.length === 0) return;
+  // 打乱顺序
+  for (var i = _reviewWords.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = _reviewWords[i]; _reviewWords[i] = _reviewWords[j]; _reviewWords[j] = tmp;
+  }
+  _reviewIndex = 0;
+  _reviewScore = 0;
+  renderReviewQuestion();
+}
+
+function renderReviewQuestion() {
+  if (_reviewIndex >= _reviewWords.length) {
+    finishVocabReview();
+    return;
+  }
+  var w = _reviewWords[_reviewIndex];
+  // 随机选择复习方式：英→中 或 中→英
+  var isEnToCn = Math.random() > 0.5;
+  var allVocab = Storage.getVocab();
+  
+  var html = '<div class="review-header">';
+  html += '<span class="review-progress">' + (_reviewIndex + 1) + ' / ' + _reviewWords.length + '</span>';
+  html += '<button class="review-quit-btn" id="review-quit">退出复习</button>';
+  html += '</div>';
+  
+  if (isEnToCn) {
+    // 英→中：看英文选中文
+    html += '<div class="review-prompt">选出这个单词的意思：</div>';
+    html += '<div class="review-word">' + w.word + '</div>';
+    html += '<div class="review-options">';
+    // 正确答案 + 3个干扰项
+    var options = [w.meaning];
+    var others = allVocab.filter(function(v) { return v.word !== w.word; });
+    for (var k = 0; k < 3 && others.length > 0; k++) {
+      var ri = Math.floor(Math.random() * others.length);
+      options.push(others[ri].meaning);
+      others.splice(ri, 1);
+    }
+    // 打乱选项
+    for (var i = options.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = options[i]; options[i] = options[j]; options[j] = tmp;
+    }
+    var correctIdx = options.indexOf(w.meaning);
+    options.forEach(function(opt, i) {
+      html += '<div class="review-option" data-opt="' + i + '" data-correct="' + (i === correctIdx ? '1' : '0') + '" data-word="' + w.word + '">' + opt + '</div>';
+    });
+    html += '</div>';
+  } else {
+    // 中→英：看中文选英文
+    html += '<div class="review-prompt">选出对应的英文单词：</div>';
+    html += '<div class="review-word">' + w.meaning + '</div>';
+    html += '<div class="review-options">';
+    var options = [w.word];
+    var others = allVocab.filter(function(v) { return v.word !== w.word; });
+    for (var k = 0; k < 3 && others.length > 0; k++) {
+      var ri = Math.floor(Math.random() * others.length);
+      options.push(others[ri].word);
+      others.splice(ri, 1);
+    }
+    for (var i = options.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = options[i]; options[i] = options[j]; options[j] = tmp;
+    }
+    var correctIdx = options.indexOf(w.word);
+    options.forEach(function(opt, i) {
+      html += '<div class="review-option" data-opt="' + i + '" data-correct="' + (i === correctIdx ? '1' : '0') + '" data-word="' + w.word + '">' + opt + '</div>';
+    });
+    html += '</div>';
+  }
+  
+  document.getElementById('vocab-content').innerHTML = html;
+  
+  // 绑定选项点击
+  document.querySelectorAll('.review-option').forEach(function(opt) {
+    opt.onclick = function() {
+      var isCorrect = this.getAttribute('data-correct') === '1';
+      var word = this.getAttribute('data-word');
+      if (isCorrect) {
+        this.classList.add('correct');
+        _reviewScore++;
+        Storage.reviewVocabCorrect(word);
+      } else {
+        this.classList.add('wrong');
+        // 高亮正确答案
+        document.querySelectorAll('.review-option').forEach(function(o) {
+          if (o.getAttribute('data-correct') === '1') o.classList.add('correct');
+        });
+        Storage.reviewVocabWrong(word);
+      }
+      // 禁用所有选项
+      document.querySelectorAll('.review-option').forEach(function(o) { o.onclick = null; });
+      // 延迟进入下一题
+      setTimeout(function() {
+        _reviewIndex++;
+        renderReviewQuestion();
+      }, isCorrect ? 800 : 1500);
+    };
+  });
+  
+  // 退出按钮
+  var quitBtn = document.getElementById('review-quit');
+  if (quitBtn) quitBtn.onclick = function() { renderVocab(); };
+}
+
+function finishVocabReview() {
+  var total = _reviewWords.length;
+  var html = '<div class="review-result">';
+  html += '<div style="font-size:48px;margin-bottom:16px;">🎉</div>';
+  html += '<h3>复习完成！</h3>';
+  html += '<p style="font-size:1.2em;">答对 <b style="color:#4CAF50;">' + _reviewScore + '</b> / ' + total + '</p>';
+  if (_reviewScore === total) {
+    html += '<p style="color:#FF9800;">🌟 全部正确，太棒了！</p>';
+  } else if (_reviewScore >= total * 0.7) {
+    html += '<p style="color:#4CAF50;">👍 不错，继续加油！</p>';
+  } else {
+    html += '<p style="color:#f44336;">💪 多复习几次就会记住的！</p>';
+  }
+  html += '<button class="review-start-btn" onclick="renderVocab()">返回词汇本</button>';
+  html += '</div>';
+  document.getElementById('vocab-content').innerHTML = html;
+}
+
+// ==================== v37 成就系统 ====================
+function renderAchievements() {
+  showScreen('achievements');
+  // 先检查新成就
+  var newlyUnlocked = Storage.checkAchievements();
+  
+  var defs = Storage.ACHIEVEMENT_DEFS;
+  var unlocked = Storage.getAchievements();
+  var unlockCount = Object.keys(unlocked).length;
+  var total = defs.length;
+  
+  var html = '<div class="ach-summary">';
+  html += '<div class="ach-progress-ring">';
+  html += '<svg viewBox="0 0 36 36" class="ach-ring-svg">';
+  html += '<path class="ach-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>';
+  var pct = Math.round((unlockCount / total) * 100);
+  html += '<path class="ach-ring-fill" stroke-dasharray="' + pct + ', 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>';
+  html += '<text x="18" y="20.35" class="ach-ring-text">' + unlockCount + '/' + total + '</text>';
+  html += '</svg>';
+  html += '</div>';
+  html += '<div class="ach-summary-text">已解锁 ' + unlockCount + ' / ' + total + ' 个成就</div>';
+  html += '</div>';
+  
+  html += '<div class="ach-grid">';
+  defs.forEach(function(def) {
+    var isUnlocked = !!unlocked[def.id];
+    var when = isUnlocked ? new Date(unlocked[def.id].unlockedAt).toLocaleDateString() : '';
+    html += '<div class="ach-card ' + (isUnlocked ? 'unlocked' : 'locked') + '">';
+    html += '<div class="ach-icon">' + (isUnlocked ? def.icon : '🔒') + '</div>';
+    html += '<div class="ach-info">';
+    html += '<div class="ach-name">' + (isUnlocked ? def.name : '???') + '</div>';
+    html += '<div class="ach-desc">' + def.desc + '</div>';
+    if (isUnlocked) html += '<div class="ach-date">' + when + '</div>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  
+  document.getElementById('achievements-content').innerHTML = html;
+  document.getElementById('ach-count').textContent = unlockCount + '/' + total;
+  
+  // 弹出新成就通知
+  if (newlyUnlocked.length > 0) {
+    showAchievementToast(newlyUnlocked);
+  }
+}
+
+function showAchievementToast(achievements) {
+  var toast = document.createElement('div');
+  toast.className = 'ach-toast';
+  var html = '';
+  achievements.forEach(function(a) {
+    html += '<div class="ach-toast-item">' + a.icon + ' 成就解锁：' + a.name + '</div>';
+  });
+  toast.innerHTML = html;
+  document.body.appendChild(toast);
+  setTimeout(function() { toast.classList.add('show'); }, 50);
+  setTimeout(function() {
+    toast.classList.remove('show');
+    setTimeout(function() { toast.remove(); }, 400);
+  }, 3000);
+}
+
 function speakWord(word) {
-  Sound.play('click');
+  if (!word) return;
+  // v38 单词高亮反馈
+  highlightClickedWord(word);
+  // 优先使用 Capacitor TTS 插件（Android 原生发音）
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech) {
+    Capacitor.Plugins.TextToSpeech.speak({
+      text: word,
+      lang: 'en-US',
+      rate: 0.9,
+      pitch: 1.0,
+      volume: 1.0
+    }).catch(function(e) {
+      console.log('TTS failed, fallback', e);
+      webSpeakWord(word);
+    });
+  } else {
+    webSpeakWord(word);
+  }
+}
+
+// v38 单词点击高亮反馈
+function highlightClickedWord(word) {
+  var articleEl = document.getElementById('quiz-article');
+  if (!articleEl) return;
+  // 遍历所有包含英文单词的元素
+  var walker = document.createTreeWalker(articleEl, NodeFilter.SHOW_TEXT, null, false);
+  var node;
+  while (node = walker.nextNode()) {
+    var text = node.textContent || '';
+    var regex = new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
+    if (regex.test(text)) {
+      var parent = node.parentElement;
+      if (parent && parent.style) {
+        parent.classList.add('word-click-highlight');
+        setTimeout(function() {
+          if (parent.classList) parent.classList.remove('word-click-highlight');
+        }, 400);
+      }
+      break; // 找到第一个匹配就停止
+    }
+  }
+}
+
+function webSpeakWord(word) {
   try {
     var sp = window.speechSynthesis;
     if (sp) {
@@ -636,9 +1834,111 @@ function speakWord(word) {
       var u = new SpeechSynthesisUtterance(word);
       u.lang = 'en-US';
       u.rate = 0.8;
+      var voices = sp.getVoices();
+      if (voices.length > 0) {
+        var enVoice = voices.find(function(v) { return v.lang.indexOf('en') === 0; });
+        if (enVoice) u.voice = enVoice;
+      }
       sp.speak(u);
     }
   } catch(e) {}
+}
+
+// ==================== v36 错题本 ====================
+function renderWrongAnswers() {
+  showScreen('wrong-answers');
+  var wrongs = Storage.getWrongAnswers() || [];
+  var container = document.getElementById('wrong-answers-content');
+  var badge = document.getElementById('wa-count-badge');
+  if (badge) badge.textContent = wrongs.length > 0 ? wrongs.length + ' 道错题' : '';
+
+  if (wrongs.length === 0) {
+    container.innerHTML =
+      '<div class="wa-empty">' +
+        '<span class="empty-icon">🎉</span>' +
+        '<p>太棒了！暂无错题～</p>' +
+        '<p style="font-size:0.85em;color:#aaa;margin-top:8px;">继续闯关，保持这个势头！</p>' +
+        '<button class="home-btn" style="margin-top:20px;display:inline-block;" onclick="renderLevelMap(); showScreen(\'level-map\')">去闯关</button>' +
+      '</div>';
+    return;
+  }
+
+  var html = '<p style="color:#888;font-size:0.9em;margin-bottom:12px;text-align:center;">共 ' + wrongs.length + ' 道错题（答错后自动加入）</p>';
+  wrongs.forEach(function(w, idx) {
+    var story = STORIES[w.levelIndex];
+    var levelName = story ? ('第 ' + (w.levelIndex + 1) + ' 关 · ' + (story.titleCN || story.title || '')) : ('第 ' + (w.levelIndex + 1) + ' 关');
+    html += '<div class="wa-item">' +
+      '<div class="wa-level">' + levelName + '</div>' +
+      '<div class="wa-question">' + (idx + 1) + '. ' + w.question + '</div>' +
+      '<div class="wa-wrong">❌ 你的答案：' + w.userAnswer + '</div>' +
+      '<div class="wa-correct">✅ 正确答案：' + w.correctAnswer + '</div>';
+    if (w.explanation) {
+      html += '<div class="wa-explanation">📖 解析：' + w.explanation + '</div>';
+    }
+    html += '<button class="wa-retry-btn" onclick="retryWrongLevel(\'' + w.id + '\', ' + w.levelIndex + ')">🔄 重做此关</button>' +
+      '<button class="wa-retry-btn" style="background:#e0e0e0;color:#666;margin-left:8px;" onclick="removeWrongAnswer(\'' + w.id + '\')">✓ 已掌握</button>' +
+      '</div>';
+  });
+
+  html += '<div style="text-align:center;margin:20px 0 30px;">' +
+    '<button class="wa-retry-btn" style="background:#e0e0e0;color:#888;padding:10px 24px;" onclick="clearAllWrongs()">清空全部错题</button>' +
+    '</div>';
+  container.innerHTML = html;
+  updateUserDisplay();
+}
+
+function retryWrongLevel(wrongId, levelIndex) {
+  Storage.removeWrongAnswer(wrongId);
+  renderLevelMap();
+  startLevel(levelIndex);
+}
+
+function removeWrongAnswer(id) {
+  Storage.removeWrongAnswer(id);
+  renderWrongAnswers(); // 刷新列表
+}
+
+function clearAllWrongs() {
+  if (!confirm('确定清空全部错题记录？')) return;
+  Storage.clearWrongAnswers();
+  renderWrongAnswers();
+}
+
+// ==================== v36 每日登录奖励 ====================
+function claimDailyReward() {
+  if (!Storage.canClaimDailyReward()) {
+    var status = Storage.getDailyRewardStatus();
+    var streak = status.streak || 0;
+    var coins = Storage.getCoins();
+    showDailyRewardPopup(0, streak, false, coins);
+    return;
+  }
+  var result = Storage.claimDailyReward();
+  showDailyRewardPopup(result.coins, result.streak, true, Storage.getCoins());
+  // v37 检查成就
+  var ach = Storage.checkAchievements();
+  if (ach.length > 0) showAchievementToast(ach);
+}
+
+function showDailyRewardPopup(coinsEarned, streak, isNewClaim, totalCoins) {
+  var overlay = document.createElement('div');
+  overlay.className = 'daily-reward-overlay';
+  overlay.id = 'daily-reward-overlay';
+  var emoji = isNewClaim ? '🎁' : '⏰';
+  var title = isNewClaim ? '每日奖励到账！' : '今日已领取';
+  var sub = isNewClaim ? ('连续登录 ' + streak + ' 天 · 明天继续来哦～') : ('已连续登录 ' + streak + ' 天，明天再来领更大奖励！');
+  var coinDisplay = isNewClaim ? ('+' + coinsEarned) : ('💰 已有 ' + totalCoins + ' 金币');
+  overlay.innerHTML =
+    '<div class="daily-reward-box">' +
+      '<div style="font-size:3em;margin-bottom:8px;">' + emoji + '</div>' +
+      '<div class="daily-reward-title">' + title + '</div>' +
+      '<div class="daily-reward-coins">' + coinDisplay + '</div>' +
+      '<div class="daily-reward-streak">🔥 连续 ' + streak + ' 天</div>' +
+      '<div class="daily-reward-sub">' + sub + '</div>' +
+      '<button class="daily-reward-btn" onclick="document.getElementById(\'daily-reward-overlay\').remove()">知道了！</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  if (isNewClaim) Sound.play('win');
 }
 
 // ==================== 设置页 ====================
@@ -646,6 +1946,12 @@ function showSettings() {
   showScreen('settings');
   var settings = Storage.getSettings();
   document.getElementById('sound-toggle').textContent = settings.sound ? '音效：开' : '音效：关';
+  // 更新设置页的小鸡数量显示（从本地获取）
+  var localChicks = Storage.getChicksSaved();
+  var chickenCountEl = document.getElementById('chicken-count');
+  if (chickenCountEl) {
+    chickenCountEl.textContent = '已救回: ' + localChicks + '/10 只';
+  }
   updateUserDisplay();
 }
 
@@ -661,16 +1967,24 @@ function logoutUser() {
   if (!confirm('确定退出登录？本地数据会保留。')) return;
   Storage.logout();
   alert('已退出登录');
-  showScreen('home');
-  renderLevelMap();
+  showLogin();
+  updateNavButtons();
 }
 
 function resetAll() {
   if (!confirm('确定重置所有数据？包括关卡进度、小鸡花园等全部清空！')) return;
+  // 同步清空服务器数据（保留注册信息，只清进度和分数）
+  if (Storage.isLoggedIn()) {
+    apiFetch('/api/reset-progress', {
+      method: 'POST'
+    }).catch(function(e) { console.log('Server reset failed:', e); });
+  }
   Storage.reset();
-  alert('数据已重置');
-  showScreen('home');
+  Storage.logout();  // 清除token（不弹confirm）
+  alert('数据已重置，请重新登录');
+  showLogin();
   renderLevelMap();
+  updateNavButtons();
 }
 
 // ==================== 排行榜 ====================
@@ -713,29 +2027,37 @@ function showLogin() {
   document.getElementById('login-school').value = '';
   document.getElementById('login-birthdate').value = '';
   document.getElementById('login-msg').textContent = '';
+  var nameGroup = document.getElementById('login-name-group');
+  if (nameGroup) nameGroup.style.display = 'none';
+  var toggleBtn = document.getElementById('login-toggle');
+  if (toggleBtn) toggleBtn.textContent = '还没有账号？点击去注册';
 }
 
-function requestCode() {
-  var phone = document.getElementById('login-phone').value.trim();
-  if (!/^1[3-9]\d{9}$/.test(phone)) {
-    document.getElementById('login-msg').textContent = '请输入正确的手机号';
-    return;
+function translateError(err) {
+  if (!err) return '操作失败，请重试';
+  if (err.indexOf('min 2 chars') >= 0) return '姓名至少需要2个字';
+  if (err.indexOf('not found') >= 0) return '用户不存在，请先注册';
+  if (err.indexOf('invalid password') >= 0) return '密码错误';
+  if (err.indexOf('already') >= 0) return '该手机号已注册，请直接登录';
+  if (err.indexOf('invalid phone') >= 0) return '手机号格式不正确';
+  if (err.indexOf('required') >= 0) return '请填写所有必填项';
+  if (err.indexOf('school min') >= 0) return '学校名称至少需要2个字';
+  if (err.indexOf('birthdate') >= 0) return '请选择出生日期';
+  return err;
+}
+
+function toggleLoginMode() {
+  var nameGroup = document.getElementById('login-name-group');
+  var toggleBtn = document.getElementById('login-toggle');
+  if (!nameGroup) return;
+  var currentDisplay = nameGroup.style.display || '';
+  if (currentDisplay === 'none') {
+    nameGroup.style.display = 'block';
+    if (toggleBtn) toggleBtn.textContent = '切换到账号登录';
+  } else {
+    nameGroup.style.display = 'none';
+    if (toggleBtn) toggleBtn.textContent = '还没有账号？点击去注册';
   }
-  document.getElementById('login-msg').textContent = '发送中...';
-  sendVerifyCode(phone)
-    .then(function(data) {
-      if (data.success) {
-        document.getElementById('login-msg').textContent = '验证码已发送（开发模式：1234）';
-        // 开发模式：自动填入
-        document.getElementById('login-code').value = '1234';
-        document.getElementById('login-name-group').style = '';
-      } else {
-        document.getElementById('login-msg').textContent = (data.message || '发送失败');
-      }
-    })
-    .catch(function(e) {
-      document.getElementById('login-msg').textContent = '网络错误，请重试';
-    });
 }
 
 function doLogin() {
@@ -749,25 +2071,85 @@ function doLogin() {
     document.getElementById('login-msg').textContent = '密码至少6位';
     return;
   }
-  // Get name/school/birthdate (optional for existing users)
   var name = document.getElementById('login-name').value.trim();
   var school = document.getElementById('login-school').value.trim();
   var birthdate = document.getElementById('login-birthdate').value.trim();
+  
+  // 判断当前是注册模式还是登录模式
+  var nameGroup = document.getElementById('login-name-group');
+  var isRegisterMode = nameGroup && nameGroup.style.display !== 'none';
+  
+  if (isRegisterMode) {
+    // 注册模式：校验姓名，调用 registerUser
+    if (!name || name.length < 2) {
+      document.getElementById('login-msg').textContent = '姓名至少需要2个字';
+      return;
+    }
+    document.getElementById('login-msg').textContent = '注册中...';
+    registerUser(phone, password, name, school, birthdate)
+      .then(function(data) {
+        if (data.success) {
+          Storage.saveUser({ id: data.user.id, phone: data.user.phone, name: data.user.name, school: data.user.school, token: data.token, isNew: true });
+          var serverChicks = data.user.totalChicks || 0;
+          var localChicks = [];
+          for (var i = 0; i < 10; i++) {
+            localChicks[i] = i < serverChicks;
+          }
+          Storage.set(Storage.KEYS.CHICKS, localChicks);
+          
+          // 注册也可能返回已有进度（重复注册=自动登录）
+          var starsPerLevel = data.user.starsPerLevel || [];
+          var localProgress = [];
+          for (var i = 0; i < 30; i++) {
+            var s = (i < starsPerLevel.length) ? (starsPerLevel[i] || 0) : 0;
+            localProgress[i] = { passed: s > 0, score: s === 3 ? 100 : s === 2 ? 80 : s === 1 ? 60 : 0, stars: s };
+          }
+          Storage.set(Storage.KEYS.PROGRESS, localProgress);
+          document.getElementById('login-msg').textContent = data.isNew ? '注册成功！' : '登录成功！';
+          setTimeout(function() {
+            showReturnScreen();
+            updateNavButtons();
+          }, 500);
+        } else {
+          if (data.error) { document.getElementById('login-msg').textContent = translateError(data.error); }
+        }
+      })
+      .catch(function(e) {
+        document.getElementById('login-msg').textContent = '网络错误，请重试';
+      });
+    return;
+  }
+  
   document.getElementById('login-msg').textContent = '登录中...';
-  registerUser(phone, password, name, school, birthdate)
+  loginUser(phone, password)
     .then(function(data) {
       if (data.success) {
-        Storage.saveUser({ id: data.user.id, phone: data.user.phone, name: data.user.name, school: data.user.school, token: data.token, isNew: data.isNew });
+        Storage.saveUser({ id: data.user.id, phone: data.user.phone, name: data.user.name, school: data.user.school, token: data.token, isNew: false });
+        
+        // 同步后端小鸡数据到本地（按顺序解锁）
+        var serverChicks = data.user.totalChicks || 0;
+        var localChicks = [];
+        for (var i = 0; i < 10; i++) {
+          localChicks[i] = i < serverChicks;
+        }
+        Storage.set(Storage.KEYS.CHICKS, localChicks);
+        
+        // 同步闯关进度到本地：用 starsPerLevel 恢复每关星级
+        var starsPerLevel = data.user.starsPerLevel || [];
+        var localProgress = [];
+        for (var i = 0; i < 30; i++) {
+          var s = (i < starsPerLevel.length) ? (starsPerLevel[i] || 0) : 0;
+          localProgress[i] = { passed: s > 0, score: s === 3 ? 100 : s === 2 ? 80 : s === 1 ? 60 : 0, stars: s };
+        }
+        Storage.set(Storage.KEYS.PROGRESS, localProgress);
+        
         document.getElementById('login-msg').textContent = '登录成功！';
         setTimeout(function() {
-          if (data.isNew) {
-            finishIntro();
-          } else {
-            showReturnScreen();
-          }
+          showReturnScreen();
+          updateNavButtons();
         }, 500);
       } else {
-        document.getElementById('login-msg').textContent = data.error || '登录失败，请重试';
+        if (data.error) { document.getElementById('login-msg').textContent = translateError(data.error); }
       }
     })
     .catch(function(e) {
@@ -775,24 +2157,27 @@ function doLogin() {
     });
 }
 
-
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', function() {
   Storage.init();
   Sound.init();
   renderLevelMap();
-  // 检查是否登录
-  if (Storage.isLoggedIn()) {
-    showScreen('home');
+  
+  // Check if first time (show intro video) or returning user
+  var played = Storage.get(Storage.KEYS.PLAYED);
+  if (!played) {
+    showIntro();
+  } else if (Storage.isLoggedIn()) {
+    showReturnScreen();
   } else {
     showLogin();
   }
-  // 返回键
+  
+  updateNavButtons();
   if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
     window.Capacitor.Plugins.App.addListener('backButton', function() {
       var active = document.querySelector('.screen.active');
       if (active && active.id === 'home') {
-        // 最小化
         try { window.Capacitor.Plugins.App.minimize(); } catch(e) {}
       } else if (active) {
         goBack();
