@@ -688,7 +688,7 @@ function renderQuestion() {
   var q = story.questions[currentQuestionIndex];
   var qType = q.type || 'choice'; // 默认选择题
 
-  // v44 修复: 添加 null 检查，防止在非答题页面调用时出错
+  // v44 修复: 添加 null 检查,防止在非答题页面调用时出错
   var levelInfoEl = document.getElementById('quiz-level-info');
   var articleEl = document.getElementById('quiz-article');
   var vocabAreaEl = document.getElementById('quiz-vocab-area');
@@ -1132,25 +1132,25 @@ function showLevelResult(score, stars, passed, rescuedChick, chickIdx, coinsEarn
   // v37 语法小贴士
   var story = STORIES[currentLevel];
   if (story && story.grammarTips && story.grammarTips.length > 0) {
-    var tipsHtml = '<div class="grammar-tips-card"><h4>📚 本关语法小贴士</h4>'; 
+    var tipsHtml = '<div class="grammar-tips-card"><h4>📚 本关语法小贴士</h4>';
     story.grammarTips.forEach(function(tip) {
-      tipsHtml += '<div class="grammar-tip-item"><span class="grammar-tip-title">' + tip.title + '</span><span class="grammar-tip-content">' + tip.content + '</span></div>'; 
+      tipsHtml += '<div class="grammar-tip-item"><span class="grammar-tip-title">' + tip.title + '</span><span class="grammar-tip-content">' + tip.content + '</span></div>';
     });
-    tipsHtml += '</div>'; 
+    tipsHtml += '</div>';
     var resultMsg = document.getElementById('result-msg');
     if (resultMsg) resultMsg.innerHTML += tipsHtml;
   }
-  
+
   // v43 词汇复习按钮
   var clickedWords = Storage.getClickedWordsForLevel(currentLevel);
   if (clickedWords && clickedWords.length > 0) {
     var reviewHtml = '<div style="margin-top:20px;text-align:center;">';
-    reviewHtml += '<button class="result-btn" style="background:linear-gradient(135deg,#667eea,#764ba2);" onclick="startVocabReview(' + currentLevel + ')">📚 复习本关单词 (' + clickedWords.length + ')</button>'; 
-    reviewHtml += '</div>'; 
+    reviewHtml += '<button class="result-btn" style="background:linear-gradient(135deg,#667eea,#764ba2);" onclick="startVocabReview(' + currentLevel + ')">📚 复习本关单词 (' + clickedWords.length + ')</button>';
+    reviewHtml += '</div>';
     var resultScore = document.getElementById('result-score');
     if (resultScore) resultScore.innerHTML += reviewHtml;
   }
-  
+
   // v44 阅读理解闯关答题入口
   var rqHtml = '<div style="margin-top:16px;text-align:center;">' +
     '<button class="result-btn" style="background:linear-gradient(135deg,#4a90d9,#2196F3);" onclick="startReadingQuiz(' + currentLevel + ')">📖 阅读理解闯关</button>' +
@@ -2014,7 +2014,33 @@ function toggleSound() {
   settings.sound = !settings.sound;
   Sound.setEnabled(settings.sound);
   Storage.updateSettings({ sound: settings.sound });
-  document.getElementById('sound-toggle').textContent = settings.sound ? '音效:开' : '音效:关';
+  document.getElementById('sound-toggle').textContent = settings.sound ? '音效：开' : '音效：关';
+}
+
+// v46 深色模式
+function toggleTheme() {
+  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (isDark) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('sc_theme', 'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('sc_theme', 'dark');
+  }
+  // Update toggle text
+  var themeToggle = document.getElementById('theme-toggle');
+  if (themeToggle) {
+    themeToggle.textContent = '主题：' + (isDark ? '浅色' : '深色');
+  }
+}
+
+function applySavedTheme() {
+  var theme = localStorage.getItem('sc_theme') || 'light';
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
 }
 
 function logoutUser() {
@@ -2229,18 +2255,18 @@ function startVocabReview(levelIndex) {
 function renderVocabReviewCard() {
   var container = document.getElementById('vocab-review-content');
   if (!container) return;
-  
+
   var words = vocabReviewState.words;
   var idx = vocabReviewState.currentIndex;
-  
+
   if (!words || words.length === 0 || idx >= words.length) {
-    container.innerHTML = '<div class="review-empty"><div class="review-empty-icon">🎉</div><div class="review-empty-text">复习完成！</div><div class="review-empty-hint">点击返回继续闯关</div></div>';
+    container.innerHTML = '<div class="review-empty"><div class="review-empty-icon">🎉</div><div class="review-empty-text">复习完成!</div><div class="review-empty-hint">点击返回继续闯关</div></div>';
     return;
   }
-  
+
   var word = words[idx];
   var total = words.length;
-  
+
   var html = '<div class="review-level-info">第 ' + (vocabReviewState.levelIndex + 1) + ' 关 · 点击过的单词</div>';
   html += '<div class="flashcard-container">';
   html += '<div class="flashcard" id="vocab-flashcard" onclick="flipVocabReviewCard()">';
@@ -2253,7 +2279,7 @@ function renderVocabReviewCard() {
   if (word.meaning) {
     html += '<div class="flashcard-meaning">' + word.meaning + '</div>';
   } else {
-    html += '<div class="flashcard-meaning">（暂无释义）</div>';
+    html += '<div class="flashcard-meaning">(暂无释义)</div>';
   }
   html += '<button class="flashcard-tts-btn" onclick="event.stopPropagation(); speakWord(\'' + word.word + '\')">🔊</button>';
   html += '</div>';
@@ -2263,9 +2289,9 @@ function renderVocabReviewCard() {
   html += '<div class="flashcard-progress">' + (idx + 1) + ' / ' + total + '</div>';
   html += '<button class="flashcard-nav-btn" onclick="nextVocabReviewCard()" ' + (idx >= total - 1 ? 'disabled' : '') + '>→</button>';
   html += '</div>';
-  
+
   container.innerHTML = html;
-  
+
   // 添加滑动手势
   initFlashcardSwipe();
 }
@@ -2306,14 +2332,14 @@ function startReadingQuiz(levelIndex) {
     showToast('暂无题目数据');
     return;
   }
-  
-  // 生成阅读理解题目（从关卡题目中抽取或生成）
+
+  // 生成阅读理解题目(从关卡题目中抽取或生成)
   var allQs = story.questions.filter(function(q) { return q.type === 'choice' || q.type === 'truefalse'; });
   if (allQs.length === 0) {
     showToast('本关暂无阅读理解题目');
     return;
   }
-  
+
   // 随机选3-5道题
   var shuffled = allQs.slice().sort(function() { return Math.random() - 0.5; });
   var count = Math.min(shuffled.length, Math.floor(Math.random() * 3) + 3); // 3-5道
@@ -2328,7 +2354,7 @@ function startReadingQuiz(levelIndex) {
     levelIndex: levelIndex,
     results: []
   };
-  
+
   showScreen('reading-quiz');
   renderReadingQuizQuestion();
 }
@@ -2339,15 +2365,15 @@ function renderReadingQuizQuestion() {
     finishReadingQuiz();
     return;
   }
-  
+
   var q = rq.questions[rq.currentIndex];
   var qText = q.q || q.question || '';
   var progress = ((rq.currentIndex) / rq.questions.length * 100).toFixed(0) + '%';
   var streakBadge = rq.streakCount >= 2 ? '<span class="rq-streak-badge">🔥 ' + rq.streakCount + '连击!</span>' : '';
-  
+
   var html = '<div class="rq-question-text">' + qText + '</div>';
   html += '<div class="rq-options">';
-  
+
   if (q.type === 'choice') {
     (q.options || []).forEach(function(opt, i) {
       html += '<div class="rq-option-btn" data-opt-idx="' + i + '">' + ('ABCDE')[i] + '. ' + opt + '</div>';
@@ -2357,12 +2383,12 @@ function renderReadingQuizQuestion() {
     html += '<div class="rq-option-btn" data-opt-idx="0">B. 错误 (False)</div>';
   }
   html += '</div>';
-  
+
   document.getElementById('rq-progress-fill').style.width = progress;
   document.getElementById('rq-timer').className = 'rq-timer';
   document.getElementById('rq-timer').innerHTML = '⏱️ ' + rq.timeLeft + 's';
   document.getElementById('rq-content').innerHTML = html;
-  
+
   // 绑定选项点击
   var opts = document.querySelectorAll('.rq-option-btn');
   opts.forEach(function(opt) {
@@ -2371,7 +2397,7 @@ function renderReadingQuizQuestion() {
       selectReadingQuizAnswer(parseInt(opt.getAttribute('data-opt-idx')));
     };
   });
-  
+
   // 启动计时器
   startReadingQuizTimer();
 }
@@ -2380,16 +2406,16 @@ function startReadingQuizTimer() {
   var rq = readingQuizState;
   if (rq.timerInterval) clearInterval(rq.timerInterval);
   rq.timeLeft = 30;
-  
+
   rq.timerInterval = setInterval(function() {
     rq.timeLeft--;
     var timerEl = document.getElementById('rq-timer');
     if (!timerEl) { clearInterval(rq.timerInterval); return; }
     timerEl.innerHTML = '⏱️ ' + rq.timeLeft + 's';
-    
+
     if (rq.timeLeft <= 10) timerEl.className = 'rq-timer danger';
     else if (rq.timeLeft <= 15) timerEl.className = 'rq-timer warning';
-    
+
     if (rq.timeLeft <= 0) {
       clearInterval(rq.timerInterval);
       // 超时视为答错
@@ -2401,13 +2427,13 @@ function startReadingQuizTimer() {
 function selectReadingQuizAnswer(userIdx) {
   var rq = readingQuizState;
   if (!rq.active || rq.currentIndex >= rq.questions.length) return;
-  
+
   if (rq.timerInterval) clearInterval(rq.timerInterval);
-  
+
   var q = rq.questions[rq.currentIndex];
   var correctIdx = Number(q.answer !== undefined ? q.answer : q.correct);
   var correct = userIdx === correctIdx;
-  
+
   if (correct) {
     rq.correctCount++;
     rq.streakCount++;
@@ -2416,21 +2442,21 @@ function selectReadingQuizAnswer(userIdx) {
     rq.streakCount = 0;
     Sound.play('fail');
   }
-  
+
   rq.results.push({
     question: q.q || q.question || '',
     userAnswer: userIdx,
     correctAnswer: correctIdx,
     correct: correct
   });
-  
+
   // 高亮选项
   var opts = document.querySelectorAll('.rq-option-btn');
   opts.forEach(function(opt, i) {
     if (i === correctIdx) opt.classList.add('correct');
     else if (i === userIdx && !correct) opt.classList.add('wrong');
   });
-  
+
   // 自动进入下一题
   setTimeout(function() {
     rq.currentIndex++;
@@ -2442,14 +2468,14 @@ function finishReadingQuiz() {
   var rq = readingQuizState;
   rq.active = false;
   if (rq.timerInterval) { clearInterval(rq.timerInterval); rq.timerInterval = null; }
-  
+
   var total = rq.questions.length;
   var correct = rq.correctCount;
   var pass = correct >= Math.ceil(total * 0.6); // 60%及格
   var score = total > 0 ? Math.round((correct / total) * 100) : 0;
   var stars = score >= 100 ? 3 : score >= 80 ? 2 : 1;
   var streak = rq.streakCount;
-  
+
   // 奖励
   var coins = 0;
   if (pass) {
@@ -2466,7 +2492,7 @@ function finishReadingQuiz() {
     Storage.addCoins(coins);
     Storage.save();
   }
-  
+
   // 保存历史记录
   var historyResult = {
     levelIndex: rq.levelIndex,
@@ -2479,7 +2505,7 @@ function finishReadingQuiz() {
     timestamp: new Date().toISOString()
   };
   Storage.saveReadingQuizResult(historyResult);
-  
+
   // 显示结果
   var resultHtml = '<div class="rq-result-header">';
   resultHtml += '<h2>' + (pass ? '🎉 过关!' : '💪 再接再厉!') + '</h2>';
@@ -2497,7 +2523,7 @@ function finishReadingQuiz() {
   resultHtml += '<button class="rq-retry-btn primary" onclick="startReadingQuiz(' + rq.levelIndex + ')">🔄 再来一次</button>';
   resultHtml += '<button class="rq-retry-btn secondary" onclick="exitReadingQuiz(true)">返回关卡结果</button>';
   resultHtml += '</div>';
-  
+
   document.getElementById('rq-content').innerHTML = resultHtml;
   document.getElementById('rq-progress-fill').style.width = '100%';
   document.getElementById('rq-timer').style.display = 'none';
@@ -2518,27 +2544,27 @@ function exitReadingQuiz(returnToResult) {
 function initFlashcardSwipe() {
   var container = document.querySelector('.flashcard-container');
   if (!container) return;
-  
+
   var startX = 0;
   var startY = 0;
   var isDragging = false;
-  
+
   container.addEventListener('touchstart', function(e) {
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     isDragging = true;
   }, { passive: true });
-  
+
   container.addEventListener('touchmove', function(e) {
     if (!isDragging) return;
     var deltaX = e.touches[0].clientX - startX;
     var deltaY = e.touches[0].clientY - startY;
-    // 如果水平滑动大于垂直滑动，阻止默认行为
+    // 如果水平滑动大于垂直滑动,阻止默认行为
     if (Math.abs(deltaX) > Math.abs(deltaY)) {
       e.preventDefault();
     }
   }, { passive: false });
-  
+
   container.addEventListener('touchend', function(e) {
     if (!isDragging) return;
     isDragging = false;
@@ -2558,6 +2584,12 @@ function initFlashcardSwipe() {
 document.addEventListener('DOMContentLoaded', function() {
   Storage.init();
   Sound.init();
+  applySavedTheme();
+  // Update theme toggle text
+  var themeToggle = document.getElementById('theme-toggle');
+  if (themeToggle) {
+    themeToggle.textContent = '主题：' + (localStorage.getItem('sc_theme') === 'dark' ? '深色' : '浅色');
+  }
   renderLevelMap();
 
   // Check if first time (show intro video) or returning user
@@ -2596,19 +2628,19 @@ document.addEventListener('DOMContentLoaded', function() {
 function renderLearningStats() {
   showScreen('learning-stats');
   var stats = Storage.getLearningStats();
-  
+
   // 更新段位徽章
   document.getElementById('stats-rank').textContent = stats.rank + ' | ' + stats.totalStars + ' ⭐';
-  
+
   // 生成统计卡片
   var html = '';
-  
-  // 总星星数（突出显示）
+
+  // 总星星数(突出显示)
   html += '<div class="stats-stars-display">';
   html += '<div class="stats-stars-value">' + stats.totalStars + '</div>';
   html += '<div class="stats-stars-label">累计获得 ⭐</div>';
   html += '</div>';
-  
+
   // 统计网格
   html += '<div class="stats-grid">';
   html += '<div class="stats-card">';
@@ -2616,34 +2648,34 @@ function renderLearningStats() {
   html += '<div class="stats-card-value">' + stats.articlesRead + '/' + stats.totalArticles + '</div>';
   html += '<div class="stats-card-label">已读文章</div>';
   html += '</div>';
-  
+
   html += '<div class="stats-card">';
   html += '<div class="stats-card-icon">📖</div>';
   html += '<div class="stats-card-value">' + stats.vocabMastered + '</div>';
   html += '<div class="stats-card-label">掌握词汇</div>';
   html += '</div>';
-  
+
   html += '<div class="stats-card">';
   html += '<div class="stats-card-icon">🔥</div>';
   html += '<div class="stats-card-value">' + stats.streakDays + '</div>';
   html += '<div class="stats-card-label">连续学习天</div>';
   html += '</div>';
-  
+
   html += '<div class="stats-card">';
   html += '<div class="stats-card-icon">💰</div>';
   html += '<div class="stats-card-value">' + stats.totalCoins + '</div>';
   html += '<div class="stats-card-label">拥有金币</div>';
   html += '</div>';
   html += '</div>';
-  
+
   // 7天阅读理解正确率图表
   html += '<div class="stats-chart-container">';
   html += '<div class="stats-chart-title">📈 近7天阅读理解正确率</div>';
   html += '<canvas id="stats-chart-canvas" class="stats-chart-canvas"></canvas>';
   html += '</div>';
-  
+
   document.getElementById('stats-content').innerHTML = html;
-  
+
   // 绘制柱状图
   setTimeout(function() {
     drawStatsChart(stats.quizAccuracyLast7Days);
@@ -2659,33 +2691,33 @@ function drawStatsChart(data) {
   canvas.width = w;
   canvas.height = h;
   ctx.clearRect(0, 0, w, h);
-  
+
   var maxVal = Math.max.apply(null, data.concat([100]));
   var dayLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
   var dayIndex = (new Date().getDay() + 6) % 7; // 0=Monday
-  
+
   var barWidth = w / 7 - 8;
   var chartH = h - 20;
-  
+
   for (var i = 0; i < 7; i++) {
     var val = data[i] || 0;
     var barH = (val / 100) * chartH;
     var x = i * (w / 7) + 4;
     var y = chartH - barH;
-    
+
     // 柱子
     var gradient = ctx.createLinearGradient(x, y, x, chartH);
     gradient.addColorStop(0, val >= 60 ? '#4CAF50' : val >= 40 ? '#FF9800' : '#f44336');
     gradient.addColorStop(1, val >= 60 ? '#81C784' : val >= 40 ? '#FFB74D' : '#E57373');
     ctx.fillStyle = gradient;
     ctx.fillRect(x, y, barWidth, barH);
-    
+
     // 数值
     ctx.fillStyle = '#666';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(val + '%', x + barWidth / 2, y - 4);
-    
+
     // 星期
     var labelI = (dayIndex - 6 + i + 7) % 7;
     ctx.fillStyle = '#888';
