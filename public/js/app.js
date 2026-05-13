@@ -2591,3 +2591,105 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+// v45 学习数据统计
+function renderLearningStats() {
+  showScreen('learning-stats');
+  var stats = Storage.getLearningStats();
+  
+  // 更新段位徽章
+  document.getElementById('stats-rank').textContent = stats.rank + ' | ' + stats.totalStars + ' ⭐';
+  
+  // 生成统计卡片
+  var html = '';
+  
+  // 总星星数（突出显示）
+  html += '<div class="stats-stars-display">';
+  html += '<div class="stats-stars-value">' + stats.totalStars + '</div>';
+  html += '<div class="stats-stars-label">累计获得 ⭐</div>';
+  html += '</div>';
+  
+  // 统计网格
+  html += '<div class="stats-grid">';
+  html += '<div class="stats-card">';
+  html += '<div class="stats-card-icon">📚</div>';
+  html += '<div class="stats-card-value">' + stats.articlesRead + '/' + stats.totalArticles + '</div>';
+  html += '<div class="stats-card-label">已读文章</div>';
+  html += '</div>';
+  
+  html += '<div class="stats-card">';
+  html += '<div class="stats-card-icon">📖</div>';
+  html += '<div class="stats-card-value">' + stats.vocabMastered + '</div>';
+  html += '<div class="stats-card-label">掌握词汇</div>';
+  html += '</div>';
+  
+  html += '<div class="stats-card">';
+  html += '<div class="stats-card-icon">🔥</div>';
+  html += '<div class="stats-card-value">' + stats.streakDays + '</div>';
+  html += '<div class="stats-card-label">连续学习天</div>';
+  html += '</div>';
+  
+  html += '<div class="stats-card">';
+  html += '<div class="stats-card-icon">💰</div>';
+  html += '<div class="stats-card-value">' + stats.totalCoins + '</div>';
+  html += '<div class="stats-card-label">拥有金币</div>';
+  html += '</div>';
+  html += '</div>';
+  
+  // 7天阅读理解正确率图表
+  html += '<div class="stats-chart-container">';
+  html += '<div class="stats-chart-title">📈 近7天阅读理解正确率</div>';
+  html += '<canvas id="stats-chart-canvas" class="stats-chart-canvas"></canvas>';
+  html += '</div>';
+  
+  document.getElementById('stats-content').innerHTML = html;
+  
+  // 绘制柱状图
+  setTimeout(function() {
+    drawStatsChart(stats.quizAccuracyLast7Days);
+  }, 100);
+}
+
+function drawStatsChart(data) {
+  var canvas = document.getElementById('stats-chart-canvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.offsetWidth || 300;
+  var h = 150;
+  canvas.width = w;
+  canvas.height = h;
+  ctx.clearRect(0, 0, w, h);
+  
+  var maxVal = Math.max.apply(null, data.concat([100]));
+  var dayLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  var dayIndex = (new Date().getDay() + 6) % 7; // 0=Monday
+  
+  var barWidth = w / 7 - 8;
+  var chartH = h - 20;
+  
+  for (var i = 0; i < 7; i++) {
+    var val = data[i] || 0;
+    var barH = (val / 100) * chartH;
+    var x = i * (w / 7) + 4;
+    var y = chartH - barH;
+    
+    // 柱子
+    var gradient = ctx.createLinearGradient(x, y, x, chartH);
+    gradient.addColorStop(0, val >= 60 ? '#4CAF50' : val >= 40 ? '#FF9800' : '#f44336');
+    gradient.addColorStop(1, val >= 60 ? '#81C784' : val >= 40 ? '#FFB74D' : '#E57373');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, barWidth, barH);
+    
+    // 数值
+    ctx.fillStyle = '#666';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(val + '%', x + barWidth / 2, y - 4);
+    
+    // 星期
+    var labelI = (dayIndex - 6 + i + 7) % 7;
+    ctx.fillStyle = '#888';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(dayLabels[labelI], x + barWidth / 2, h - 4);
+  }
+}
