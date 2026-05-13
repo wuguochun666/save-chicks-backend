@@ -19,7 +19,8 @@ const Storage = {
     VOCAB_REVIEW: 'sc_vocab_review',          // v37 词汇复习进度
     ACHIEVEMENTS: 'sc_achievements',            // v37 成就系统
     CLICKED_WORDS: 'sc_clicked_words',          // v43 点击单词记录
-    READING_QUIZ_HISTORY: 'sc_reading_quiz_history'  // v44 阅读理解闯关答题记录
+    READING_QUIZ_HISTORY: 'sc_reading_quiz_history',  // v44 阅读理解闯关答题记录
+    VOCAB_BOOK: 'sc_vocab_book'                     // v47 生词本
   },
   init() {
     if (!this.get(this.KEYS.CHICKS)) {
@@ -37,6 +38,7 @@ const Storage = {
       this.set(this.KEYS.ACHIEVEMENTS, {});
       this.set(this.KEYS.CLICKED_WORDS, {});
       this.set(this.KEYS.READING_QUIZ_HISTORY, []);
+      this.set(this.KEYS.VOCAB_BOOK, []);
     }
   },
   get(key) {
@@ -529,4 +531,55 @@ const Storage = {
       quizAccuracyLast7Days: last7Days
     };
   };
+
+
+  // v47 生词本
+  getVocabBook() {
+    return this.get(this.KEYS.VOCAB_BOOK) || [];
+  },
+  addToVocabBook(word, meaning, sentence, levelIndex, articleTitle) {
+    var book = this.getVocabBook();
+    if (book.some(function(w) { return w.word === word; })) return false;
+    book.unshift({
+      word: word,
+      meaning: meaning || '',
+      sentence: sentence || '',
+      articleTitle: articleTitle || '',
+      levelIndex: levelIndex,
+      addedAt: new Date().toISOString(),
+      mastered: false
+    });
+    this.set(this.KEYS.VOCAB_BOOK, book);
+    return true;
+  },
+  isInVocabBook(word) {
+    var book = this.getVocabBook();
+    return book.some(function(w) { return w.word === word; });
+  },
+  removeFromVocabBook(word) {
+    var book = this.getVocabBook();
+    book = book.filter(function(w) { return w.word !== word; });
+    this.set(this.KEYS.VOCAB_BOOK, book);
+  },
+  toggleVocabMastered(word) {
+    var book = this.getVocabBook();
+    book.forEach(function(w) { if (w.word === word) w.mastered = !w.mastered; });
+    this.set(this.KEYS.VOCAB_BOOK, book);
+  },
+  getVocabBookByLevel(levelIndex) {
+    return this.getVocabBook().filter(function(w) { return w.levelIndex === levelIndex; });
+  },
+  exportVocabBook(format) {
+    var book = this.getVocabBook();
+    var lines = book.map(function(w) {
+      if (format === 'csv') {
+        return '"' + w.word + '","' + (w.meaning||'') + '","' + (w.sentence||'') + '","' + (w.articleTitle||'') + '","' + (w.mastered?'已掌握':'未掌握') + '"';
+      } else {
+        return (w.mastered?'[已] ':'[ ] ') + w.word + ' ' + (w.meaning||'') + (w.sentence?' - '+w.sentence:'');
+      }
+    });
+    return (format==='csv'?'单词,释义,例句,文章来源,状态
+':'') + lines.join('
+');
+  }
 })();
