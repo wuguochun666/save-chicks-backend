@@ -25,28 +25,37 @@
     .return-chick.missing { opacity: 0.4; }
 
     /* 主页 */
-    #home { justify-content: center; align-items: center; gap: 16px; padding: 24px; background: #fef9f0; }
-    #home h1 { font-size: 2em; color: #4a3728; }
+    #home { justify-content: flex-start; align-items: center; gap: 16px; padding: 24px 24px 70px 24px; background: #fef9f0; overflow-y: auto; }
+    #home h1 { font-size: 2em; color: #4a3728; margin-top: 20px; }
     #home .home-user { font-size: 0.9em; color: #888; margin-bottom: 12px; }
     .home-btn { width: 200px; padding: 14px 20px; font-size: 1.1em; border: none; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); color: white; font-weight: bold; margin: 6px auto; display: block; }
     .home-btn.secondary { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
     .home-btn.rank { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: #4a3728; }
     .home-btn.login { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); color: #4a3728; }
 
-    /* 关卡地图 */
-    #level-map { overflow-y: auto; background: #fef9f0; }
-    .level-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; justify-content: center; }
-    .level-node { width: 58px; height: 58px; border-radius: 50%; background: #4a90d9; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75em; cursor: pointer; border: 2px solid transparent; position: relative; }
-    .level-node.passed { background: #4CAF50; border-color: #388e3c; }
-    .level-node.locked { background: #ccc; cursor: not-allowed; }
-    .level-node.rescue-level { background: #ff9800; border-color: #e65100; }
-    .level-node.chick-rescued { background: #4CAF50; border-color: #ffd700; }
-    .level-node .lnum { font-size: 1.1em; font-weight: bold; }
-    .level-node .ltype { font-size: 0.6em; }
-    .level-node .lchick, .level-node .lbadge { font-size: 0.9em; }
-    .level-node .llock { position: absolute; top: -4px; right: -4px; font-size: 0.8em; }
-    .level-node .lstars { font-size: 0.55em; color: #ffd700; }
-    .level-node .lstar { font-size: 0.6em; color: #ffd700; }
+    /* 关卡地图 v37 — 蛇形路径 */
+    #level-map { overflow-y: auto; background: linear-gradient(180deg, #e8f5e9 0%, #fef9f0 30%, #fff8e1 70%, #fce4ec 100%); padding-bottom: 70px; }
+    .map-path { display:grid; grid-template-columns:repeat(5,1fr); gap:6px 4px; padding:16px 12px; position:relative; }
+    .map-node { display:flex; flex-direction:column; align-items:center; position:relative; cursor:pointer; padding:4px 0; }
+    .map-node.locked { cursor:not-allowed; opacity:0.55; }
+    .map-node-circle { width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:3px solid #4a90d9; background:white; box-shadow:0 2px 6px rgba(0,0,0,0.12); transition:transform 0.2s,box-shadow 0.2s; }
+    .map-node:not(.locked):active .map-node-circle { transform:scale(0.92); }
+    .map-node.passed .map-node-circle { border-color:#4CAF50; background:#e8f5e9; }
+    .map-node.available .map-node-circle { border-color:#4a90d9; background:#e3f2fd; animation:pulse 2s infinite; }
+    .map-node.rescue .map-node-circle { border-color:#ff9800; background:#fff3e0; border-width:4px; }
+    .map-node.rescued .map-node-circle { border-color:#ffd700; background:#fffde7; box-shadow:0 0 12px rgba(255,215,0,0.5); }
+    @keyframes pulse { 0%,100%{box-shadow:0 2px 6px rgba(0,0,0,0.12)} 50%{box-shadow:0 2px 12px rgba(74,144,217,0.4)} }
+    .map-num { font-size:1.1em; font-weight:bold; color:#4a90d9; }
+    .map-check { font-size:1.2em; }
+    .map-lock { font-size:1.1em; }
+    .map-chick-goal { font-size:1.2em; }
+    .map-chick-done { font-size:1.2em; }
+    .map-node-label { font-size:0.6em; color:#666; margin-top:2px; text-align:center; max-width:56px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .map-stars { font-size:0.5em; margin-top:1px; }
+    .map-type { font-size:0.55em; color:#999; margin-top:1px; }
+    /* 连接线 */
+    .map-connector { position:absolute; top:24px; left:-2px; width:4px; height:2px; background:#ccc; }
+    .map-node.passed .map-connector { background:#4CAF50; }
 
     /* 转场动画页 */
     #entry-screen { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; justify-content: center; align-items: center; text-align: center; padding: 40px; }
@@ -86,26 +95,235 @@
     .result-btn { padding: 12px 32px; font-size: 1.1em; border: none; border-radius: 12px; cursor: pointer; margin: 8px; background: linear-gradient(135deg, #4CAF50 0%, #66bb6a 100%); color: white; }
 
     /* 小鸡花园 */
-    #garden { background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%); }
-    #garden-content { flex: 1; overflow-y: auto; padding: 12px; }
-    .garden-title { text-align: center; font-size: 1.4em; color: #2e7d32; margin: 12px; }
-    .garden-hint { text-align: center; color: #388e3c; font-size: 0.9em; }
-    .garden-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 12px; }
-    .garden-chick { font-size: 2.2em; text-align: center; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.7); }
-    .garden-chick.rescued { cursor: pointer; }
-    .garden-chick.rescued:active { transform: scale(1.1); }
-    .garden-chick.missing { opacity: 0.3; }
+    #garden { background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); }
+    #garden-content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 90px; }
+    .garden-title { text-align: center; font-size: 1.3em; color: #2e7d32; margin: 8px 0 4px; }
+    .garden-hint { text-align: center; color: #388e3c; font-size: 0.88em; margin-bottom: 12px; }
+    .garden-count { display: inline-block; background: #fff; border-radius: 20px; padding: 6px 16px; font-size: 0.9em; color: #2e7d32; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin: 0 auto 12px; text-align: center; width: auto; }
+    .garden-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding-bottom: 16px; max-height: calc(100dvh - 200px); overflow-y: auto; }
+    .chick-card { background: white; border-radius: 16px; padding: 16px 12px; text-align: center; box-shadow: 0 3px 12px rgba(0,0,0,0.10); transition: all 0.2s; border: 2px solid transparent; }
+    .chick-card:active { transform: scale(0.97); }
+    .chick-card.rescued { border-color: #81c784; }
+    .chick-card.locked { opacity: 0.55; background: #f5f5f5; }
+    .chick-avatar { font-size: 44px; margin: 0 auto 8px; position: relative; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+    .chick-avatar.chick-bounce { animation: chick-bounce 2s ease-in-out infinite; }
+    @keyframes chick-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .chick-name { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 4px; }
+    .chick-level { font-size: 11px; color: #888; margin-bottom: 10px; }
+    .chick-hunger { font-size: 12px; color: #666; margin-bottom: 8px; }
+    .hunger-bar { height: 4px; background: #e0e0e0; border-radius: 2px; margin: 6px 0; overflow: hidden; }
+    .hunger-fill { height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); border-radius: 2px; transition: width 0.3s; }
+    .chick-actions { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
+    .chick-action-btn { width: 32px; height: 32px; border: none; border-radius: 8px; background: #f5f5f5; font-size: 16px; cursor: pointer; transition: all 0.2s; }
+    .chick-action-btn:active { transform: scale(0.9); background: #e0e0e0; }
+    .costume-overlay { position: absolute; font-size: 20px; z-index: 2; pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+    .costume-hat { top: -8px; left: 50%; transform: translateX(-50%); font-size: 22px; }
+    .costume-face { top: 50%; left: 50%; transform: translate(-50%, -30%); font-size: 16px; }
+    .costume-neck { bottom: 2px; left: 50%; transform: translateX(-50%); font-size: 18px; }
+    .grammar-tips-card { background: linear-gradient(135deg, #fff3e0, #ffe0b2); border-radius: 12px; padding: 12px 16px; margin-top: 16px; border-left: 4px solid #ff9800; }
+    .grammar-tips-card h4 { margin: 0 0 8px 0; color: #e65100; font-size: 0.95em; }
+    .grammar-tip-item { margin-bottom: 8px; padding: 6px 0; border-bottom: 1px dashed #ffcc80; }
+    .grammar-tip-item:last-child { border-bottom: none; margin-bottom: 0; }
+    .grammar-tip-title { display: inline-block; background: #ff9800; color: white; border-radius: 4px; padding: 2px 8px; font-size: 0.85em; font-weight: 600; margin-right: 6px; }
+    .grammar-tip-content { color: #5d4037; font-size: 0.85em; }
+    /* v37 词汇复习 */
+    .vocab-mastery-bar { display:flex; justify-content:space-around; background:linear-gradient(135deg,#e8f5e9,#c8e6c9); border-radius:12px; padding:10px 8px; margin-bottom:14px; }
+    .mastery-stat { text-align:center; }
+    .mastery-num { display:block; font-size:1.4em; font-weight:bold; }
+    .mastery-num.mastered { color:#2e7d32; }
+    .mastery-num.learning { color:#ff9800; }
+    .mastery-num.new-word { color:#9e9e9e; }
+    .mastery-num.total { color:#1565c0; }
+    .mastery-label { font-size:0.75em; color:#666; }
+    .review-start-btn { display:block; width:100%; background:linear-gradient(135deg,#ff9800,#f57c00); color:white; border:none; border-radius:12px; padding:12px; font-size:1.1em; font-weight:600; cursor:pointer; margin-bottom:14px; }
+    .review-ok-msg { text-align:center; padding:8px; background:#e8f5e9; border-radius:8px; color:#2e7d32; margin-bottom:14px; }
+    .vocab-level-badge { display:inline-block; font-size:0.7em; padding:1px 6px; border-radius:4px; margin-left:6px; vertical-align:middle; }
+    .vocab-level-badge.new { background:#eee; color:#999; }
+    .vocab-level-badge.learning { background:#fff3e0; color:#e65100; }
+    .vocab-level-badge.mastered { background:#e8f5e9; color:#2e7d32; }
+    .review-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+    .review-progress { font-size:1em; color:#666; }
+    .review-quit-btn { background:none; border:1px solid #ccc; border-radius:8px; padding:4px 12px; color:#999; cursor:pointer; }
+    .review-prompt { color:#666; font-size:0.95em; margin-bottom:8px; }
+    .review-word { font-size:1.8em; font-weight:bold; color:#4a3728; text-align:center; padding:16px 0; }
+    .review-option { background:#fff; border:2px solid #e0e0e0; border-radius:12px; padding:12px 16px; margin:8px 0; cursor:pointer; font-size:1em; transition:all 0.2s; }
+    .review-option:active { transform:scale(0.98); }
+    .review-option.correct { background:#c8e6c9; border-color:#4CAF50; }
+    .review-option.wrong { background:#ffcdd2; border-color:#f44336; }
+    .review-result { text-align:center; padding:30px 16px; }
+    /* v37 成就系统 */
+    .ach-summary { text-align:center; padding:16px 0; }
+    .ach-progress-ring { display:inline-block; width:120px; height:120px; }
+    .ach-ring-svg { width:100%; height:100%; }
+    .ach-ring-bg { fill:none; stroke:#eee; stroke-width:3; }
+    .ach-ring-fill { fill:none; stroke:#ff9800; stroke-width:3; stroke-linecap:round; transform:rotate(-90deg); transform-origin:50% 50%; transition:stroke-dasharray 0.6s ease; }
+    .ach-ring-text { fill:#4a3728; font-size:0.35em; text-anchor:middle; font-weight:bold; }
+    .ach-summary-text { margin-top:8px; color:#666; font-size:0.9em; }
+    .ach-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 12px; }
+    .ach-card { border-radius:12px; padding:12px; display:flex; align-items:center; gap:10px; }
+    .ach-card.unlocked { background:linear-gradient(135deg,#fff8e1,#ffe0b2); border:1px solid #ffcc80; }
+    .ach-card.locked { background:#f5f5f5; border:1px dashed #ccc; opacity:0.65; }
+    .ach-icon { font-size:1.8em; flex-shrink:0; }
+    .ach-info { flex:1; min-width:0; }
+    .ach-name { font-weight:600; font-size:0.9em; color:#4a3728; }
+    .ach-desc { font-size:0.75em; color:#888; margin-top:2px; }
+    .ach-date { font-size:0.65em; color:#aaa; margin-top:2px; }
+    .ach-toast { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-80px); background:linear-gradient(135deg,#ff9800,#f57c00); color:white; padding:12px 24px; border-radius:16px; z-index:9999; font-weight:600; transition:transform 0.4s ease; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+    .ach-toast.show { transform:translateX(-50%) translateY(0); }
+    .ach-toast-item { padding:4px 0; }
+    .bottom-nav .nav-btn { flex:1; min-width:0; font-size:0.65em; padding:4px 2px; }
+    .bottom-nav .nav-icon { font-size:1.2em; display:block; }
     .garden-progress { text-align: center; color: #2e7d32; font-size: 1em; padding: 12px; }
+    .garden-shop-btn { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; border: none; border-radius: 50%; background: linear-gradient(135deg, #ff9800, #f57c00); color: white; font-size: 20px; cursor: pointer; box-shadow: 0 2px 8px rgba(255,152,0,0.4); }
+    .chick-speech-bubble { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 20px; padding: 24px 28px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); z-index: 1000; text-align: center; max-width: 280px; animation: bubblePop 0.3s ease-out; }
+    .chick-speech-bubble .bubble-emoji { font-size: 48px; margin-bottom: 8px; }
+    .chick-speech-bubble .bubble-name { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 6px; }
+    .chick-speech-bubble .bubble-text { font-size: 18px; color: #555; line-height: 1.5; }
+    .chick-speech-bubble .bubble-close { margin-top: 16px; padding: 8px 24px; border: none; background: #8BC34A; color: white; border-radius: 16px; font-size: 14px; cursor: pointer; }
+    @keyframes bubblePop { from { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+
+    /* 花园2.0 弹窗样式 */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-box { background: white; border-radius: 20px; padding: 24px; max-height: 80vh; overflow-y: auto; width: 90%; max-width: 320px; animation: modalSlide 0.3s ease-out; }
+    @keyframes modalSlide { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-box h3 { margin: 0 0 12px; font-size: 1.2em; color: #333; }
+    .shop-items { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .shop-item, .shop-item-preview { display: flex; align-items: center; padding: 12px; background: #f9f9f9; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
+    .shop-item:active, .shop-item-preview:active { background: #f0f0f0; }
+    .shop-item.disabled { opacity: 0.5; cursor: not-allowed; }
+    .shop-item.owned { background: #e8f5e9; border: 1px solid #81c784; }
+    .shop-emoji { font-size: 32px; margin-right: 12px; }
+    .shop-info { flex: 1; }
+    .shop-name { font-weight: 600; color: #333; }
+    .shop-desc { font-size: 0.85em; color: #888; }
+    .shop-price { font-weight: bold; color: #ff9800; }
+    .shop-owned { color: #4CAF50; font-weight: 600; }
+    .modal-close { width: 100%; padding: 12px; border: none; background: #e0e0e0; border-radius: 12px; font-size: 1em; cursor: pointer; }
+    .shop-tab { flex: 1; padding: 10px; border: none; background: #f0f0f0; border-radius: 8px; font-size: 0.95em; cursor: pointer; }
+    .shop-tab.active { background: #ff9800; color: white; }
+
+        /* ===== 花园2.0 精美UI ===== */
+    .garden-info-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 16px;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .garden-coin-display {
+      font-size: 1.05em;
+      font-weight: 700;
+      color: #e65100;
+    }
+    .garden-coin-hint {
+      font-size: 0.78em;
+      color: #888;
+      flex: 1;
+      text-align: right;
+    }
+    /* 全新小鸡卡片 */
+    #garden-content { padding: 10px 12px 90px; }
+    .garden-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      padding-bottom: 20px;
+    }
+    .chick-card-new {
+      background: white;
+      border-radius: 20px;
+      padding: 14px 10px 12px;
+      text-align: center;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: 2px solid transparent;
+      position: relative;
+      overflow: visible;
+    }
+    .chick-card-new:active { transform: scale(0.97); box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+    .chick-card-new.rescued { border-color: #a5d6a7; }
+    .chick-card-new.locked { opacity: 0.6; background: #fafafa; }
+    .cc-avatar-wrap { position: relative; display: inline-block; margin-bottom: 6px; }
+    .cc-avatar {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 38px;
+      margin: 0 auto 6px;
+      position: relative;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+    .cc-avatar.locked-avatar { background: #e8e8e8; color: #bbb; }
+    .chick-card-new.rescued .cc-avatar {
+      animation: chick-bounce-slow 2.5s ease-in-out infinite;
+    }
+    @keyframes chick-bounce-slow {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-6px) rotate(2deg); }
+    }
+    .cc-costume {
+      position: absolute;
+      top: -8px; right: -6px;
+      font-size: 18px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+    }
+    .cc-name {
+      font-size: 13px; font-weight: 700;
+      color: #2e7d32;
+      margin-bottom: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .cc-name.locked-name { color: #bbb; }
+    .cc-status {
+      display: flex; align-items: center; justify-content: center; gap: 3px;
+      font-size: 11px; margin-bottom: 4px;
+    }
+    .cc-hunger-icon { font-size: 14px; }
+    .cc-hunger-text { font-weight: 600; }
+    .cc-hunger-bar-wrap {
+      height: 4px; background: #eee; border-radius: 2px;
+      margin: 0 4px 2px; overflow: hidden;
+    }
+    .cc-hunger-bar {
+      height: 100%; border-radius: 2px;
+      transition: width 0.5s, background 0.5s;
+    }
+    .cc-hunger-pct { font-size: 10px; color: #aaa; }
+    .cc-locked-info { font-size: 10px; color: #bbb; padding: 0 4px; line-height: 1.4; }
+    .cc-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px; }
+    .cc-btn {
+      border: none; border-radius: 8px;
+      font-size: 10px; font-weight: 600;
+      padding: 5px 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: white;
+    }
+    .cc-btn:active { transform: scale(0.93); filter: brightness(0.9); }
+    .cc-btn-rename { background: linear-gradient(135deg, #78909c, #546e7a); }
+    .cc-btn-feed { background: linear-gradient(135deg, #ffb74d, #ff9800); }
+    .cc-btn-costume { background: linear-gradient(135deg, #ce93d8, #ab47bc); }
+    .cc-btn-talk { background: linear-gradient(135deg, #90caf9, #42a5f5); }
+    #garden .map-header {
+      background: linear-gradient(135deg, #a5d6a7, #81c784);
+    }
+    #garden .map-header h2 { color: #1b5e20; }
+
+    /* Toast 消息 */
+    @keyframes toastFadeIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
     /* 词汇本 */
     #vocab { background: #fef9f0; }
-    #vocab-content { flex: 1; overflow-y: auto; padding: 12px; }
+    #vocab-content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 70px; }
     .vocab-title { text-align: center; font-size: 1.4em; color: #4a3728; margin: 12px; }
-    .vocab-list { display: flex; flex-direction: column; gap: 8px; }
+    .vocab-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .vocab-item { background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-    .vocab-word { font-size: 1.1em; font-weight: bold; color: #333; display: flex; align-items: center; gap: 8px; }
+    .vocab-word { font-size: 1.1em; font-weight: bold; color: #333; display: flex; align-items: center; gap: 6px; }
     .vocab-word span { cursor: pointer; font-size: 1em; }
-    .vocab-meaning { font-size: 0.9em; color: #888; margin-top: 4px; }
+    .vocab-meaning { font-size: 0.88em; color: #888; margin-top: 4px; }
 
     /* 设置页 */
     #settings { background: #fef9f0; }
@@ -116,7 +334,8 @@
     #settings-content { padding-bottom: 80px; }
 
     /* 底部导航 */
-    .bottom-nav { display: flex; background: #4a3728; flex-shrink: 0; border-top: 1px solid #3e2e20; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: #4a3728; flex-shrink: 0; border-top: 1px solid #3e2e20; z-index: 999; padding-bottom: env(safe-area-inset-bottom, 0); }
+    #intro-screen.active ~ .bottom-nav { display: none; }
     .nav-btn { flex: 1; padding: 8px 4px; border: none; background: none; color: rgba(255,255,255,0.6); font-size: 0.7em; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
     .nav-btn.active { color: #ffd700; }
     .nav-btn .nav-icon { font-size: 1.4em; }
@@ -133,11 +352,9 @@
     .btn-primary { width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 1.1em; cursor: pointer; font-weight: bold; }
     .login-msg { text-align: center; color: #f44336; font-size: 0.85em; margin-top: 10px; min-height: 20px; }
     .login-tip { text-align: center; color: #888; font-size: 0.8em; margin-top: 12px; }
-    #login-name-group { display: block; }
-
     /* 排行榜 */
     #leaderboard { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
-    #leaderboard-content { flex: 1; overflow-y: auto; padding: 12px; }
+    #leaderboard-content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 70px; }
     .rank-title { text-align: center; color: #4a3728; margin: 12px 0 20px; font-size: 1.3em; }
     .rank-item { background: white; border-radius: 12px; padding: 12px 16px; margin: 8px 0; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
     .rank-item.top { background: linear-gradient(135deg, #fff9c4 0%, #fff176 100%); border: 2px solid #ffd700; }
@@ -145,13 +362,103 @@
     .rank-name { flex: 1; font-size: 1em; color: #333; }
     .rank-stars { font-size: 0.9em; color: #ff9800; }
     .rank-chicks { font-size: 0.9em; color: #4CAF50; min-width: 40px; text-align: right; }
+    /* 词汇区域 - 2列 */
+    .vocab-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .vocab-item-inline { display: flex; align-items: center; gap: 4px; padding: 5px 10px; background: #FFF8E1; border-radius: 8px; cursor: pointer; border: 1px solid #FFE0B2; flex-shrink: 0; white-space: nowrap; }
+    .vocab-item-inline:active { background: #FFE0B2; }
+    .vocab-text-sm { font-weight: 600; color: #333; font-size: 13px; }
+    .vocab-meaning-inline { color: #666; font-size: 11px; }
+    .vocab-speak-btn { cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 16px; flex-shrink: 0; }
+    .vocab-speak-btn:active { background: #FFE0B2; }
+    .vocab-text { font-weight: 600; font-size: 13px; }
+    /* 花园语音气泡 */
+    .chick-speech-bubble { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 20px; padding: 24px 28px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); z-index: 1000; text-align: center; max-width: 280px; animation: bubblePop 0.3s ease-out; }
+    .chick-speech-bubble .bubble-emoji { font-size: 48px; margin-bottom: 8px; }
+    .chick-speech-bubble .bubble-name { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 6px; }
+    .chick-speech-bubble .bubble-text { font-size: 18px; color: #555; line-height: 1.5; }
+    .chick-speech-bubble .bubble-close { margin-top: 16px; padding: 8px 24px; border: none; background: #8BC34A; color: white; border-radius: 16px; font-size: 14px; cursor: pointer; }
+    @keyframes bubblePop { from { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+
+    /* 错题本 */
+    .wa-title { text-align: center; font-size: 1.4em; color: #c62828; margin: 12px; }
+    .wa-empty { text-align: center; color: #888; margin-top: 60px; font-size: 1.1em; }
+    .wa-empty .empty-icon { font-size: 3em; display: block; margin-bottom: 12px; }
+    .wa-item { background: white; border-radius: 12px; padding: 14px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #f44336; }
+    .wa-level { font-size: 0.8em; color: #888; margin-bottom: 6px; }
+    .wa-question { font-size: 0.95em; color: #333; margin-bottom: 8px; line-height: 1.5; }
+    .wa-wrong { font-size: 0.88em; color: #f44336; margin-bottom: 4px; }
+    .wa-correct { font-size: 0.88em; color: #2e7d32; margin-bottom: 6px; }
+    .wa-explanation { font-size: 0.85em; color: #555; background: #fff8e1; border-radius: 8px; padding: 8px 10px; margin-top: 8px; line-height: 1.5; }
+    .wa-retry-btn { display: inline-block; margin-top: 8px; padding: 6px 16px; background: #f44336; color: white; border: none; border-radius: 16px; font-size: 0.85em; cursor: pointer; }
+
+    /* 每日登录奖励弹窗 */
+    .daily-reward-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .daily-reward-box { background: white; border-radius: 24px; padding: 32px 28px; text-align: center; max-width: 320px; width: 90%; box-shadow: 0 16px 48px rgba(0,0,0,0.3); animation: bubblePop 0.35s ease-out; }
+    .daily-reward-title { font-size: 1.5em; color: #4a3728; margin-bottom: 8px; }
+    .daily-reward-sub { font-size: 0.95em; color: #888; margin-bottom: 20px; }
+    .daily-reward-coins { font-size: 3.5em; margin: 16px 0; }
+    .daily-reward-streak { font-size: 1.1em; color: #ff9800; margin-bottom: 20px; }
+    .daily-reward-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #ff9800, #f57c00); color: white; border: none; border-radius: 12px; font-size: 1.1em; font-weight: bold; cursor: pointer; }
+
+    /* 首页每日奖励入口 */
+    #home-daily-btn { position: relative; }
+    #home-daily-btn .daily-dot { position: absolute; top: -4px; right: -4px; background: #f44336; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; display: flex; align-items: center; justify-content: center; }
+
+    /* 答题反馈 */
+    .qa-feedback { background: #fff8e1; border-radius: 10px; padding: 12px; margin: 8px 0; border-left: 4px solid #ff9800; }
+    .qa-feedback .qa-wrong-text { color: #f44336; font-size: 0.9em; margin-bottom: 4px; }
+    .qa-feedback .qa-correct-text { color: #2e7d32; font-size: 0.9em; margin-bottom: 6px; }
+    .qa-feedback .qa-explanation { font-size: 0.85em; color: #555; line-height: 1.5; }
+
+    /* 单词点击高亮反馈（v38） */
+    .word-click-highlight { animation: wordPulse 0.4s ease-out; }
+    @keyframes wordPulse {
+      0% { background: transparent; }
+      30% { background: rgba(255, 193, 7, 0.4); border-radius: 3px; }
+      100% { background: transparent; }
+    }
+
+    /* 填空题 */
+    .fill-blank-container { margin: 8px 0; }
+    .fill-blank-text { font-size: 0.95em; color: #333; line-height: 1.7; }
+    .blank-input { border: none; border-bottom: 2px solid #4a90d9; background: transparent; font-size: 1em; color: #333; padding: 2px 6px; min-width: 80px; text-align: center; outline: none; }
+    .blank-input:focus { border-bottom-color: #ff9800; }
+    .blank-input.correct { border-bottom-color: #4CAF50; color: #2e7d32; }
+    .blank-input.wrong { border-bottom-color: #f44336; color: #c62828; }
+    
+    /* v43 词汇复习模式 - 单词卡片 */
+    .flashcard-container { perspective: 1000px; width: 100%; max-width: 320px; margin: 0 auto; }
+    .flashcard { position: relative; width: 100%; height: 220px; cursor: pointer; transform-style: preserve-3d; transition: transform 0.6s; }
+    .flashcard.flipped { transform: rotateY(180deg); }
+    .flashcard-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+    .flashcard-front { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+    .flashcard-back { background: linear-gradient(135deg, #11998e, #38ef7d); color: white; transform: rotateY(180deg); }
+    .flashcard-word { font-size: 2.2em; font-weight: bold; margin-bottom: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .flashcard-hint { font-size: 0.9em; opacity: 0.8; }
+    .flashcard-meaning { font-size: 1.2em; text-align: center; line-height: 1.6; margin-bottom: 15px; }
+    .flashcard-tts-btn { background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 24px; cursor: pointer; transition: all 0.2s; }
+    .flashcard-tts-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+    .flashcard-nav { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 24px; }
+    .flashcard-nav-btn { width: 60px; height: 60px; border: none; border-radius: 50%; background: #4a3728; color: white; font-size: 24px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    .flashcard-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .flashcard-nav-btn:not(:disabled):active { transform: scale(0.92); }
+    .flashcard-progress { font-size: 1.1em; color: #666; min-width: 80px; text-align: center; }
+    .review-header { padding: 12px 16px; background: #4a3728; color: white; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    .review-header h2 { font-size: 1.1em; margin: 0; }
+    .review-quit-btn { background: none; border: 1px solid rgba(255,255,255,0.5); border-radius: 8px; padding: 6px 12px; color: white; cursor: pointer; font-size: 0.9em; }
+    .review-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; overflow-y: auto; }
+    .review-empty { text-align: center; padding: 40px 20px; color: #888; }
+    .review-empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .review-empty-text { font-size: 1em; margin-bottom: 8px; }
+    .review-empty-hint { font-size: 0.85em; color: #aaa; }
+    .review-level-info { font-size: 0.85em; color: #888; margin-bottom: 16px; }
   </style>
 </head>
 <body>
 <div id="app">
 
   <!-- 登录/注册页 -->
-  <div   <div id="login" class="screen active">
+  <div id="login" class="screen active">
     <div class="login-box">
       <h2>登录 / 注册</h2>
       <input id="login-phone" type="tel" placeholder="请输入手机号" maxlength="11">
@@ -159,11 +466,17 @@
       <div id="login-name-group">
         <input id="login-name" type="text" placeholder="你的姓名" maxlength="20" required>
         <input id="login-school" type="text" placeholder="学校" maxlength="30">
-        <input id="login-birthdate" type="date" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:0.9em;box-sizing:border-box;">
+        <div style="width:100%;padding:12px 0;font-size:0.9em;">
+          <label for="login-birthdate" style="color:#666;">出生日期：</label>
+          <input id="login-birthdate" type="date" style="width:calc(100% - 80px);padding:8px;border:1px solid #ddd;border-radius:8px;font-size:0.9em;box-sizing:border-box;">
+        </div>
       </div>
       <button class="btn-primary" onclick="doLogin()">登录 / 注册</button>
       <div id="login-msg" class="login-msg"></div>
-      <div class="login-tip">登录即表示同意用户协议<br>密码至少6位，老用户直接登录</div>
+      <div class="login-tip">登录即表示同意用户协议<br>新用户：填写信息后点击注册 | 老用户：直接输入手机号和密码登录</div>
+      <div style="text-align:center;margin-top:12px;">
+        <span id="login-toggle" style="color:#4a90d9;cursor:pointer;font-size:0.9em;" onclick="toggleLoginMode()">切换到账号登录</span>
+      </div>
     </div>
   </div>
 
@@ -183,7 +496,7 @@
       <div id="return-chicks-list"></div>
       <div id="return-status" style="text-align:center;margin-top:12px;"></div>
       <div style="text-align:center;margin-top:24px;">
-        <button class="home-btn" onclick="finishIntro()">开始闯关</button>
+        <button class="home-btn" onclick="renderLevelMap(); showScreen('level-map')">开始闯关</button>
       </div>
     </div>
   </div>
@@ -193,11 +506,14 @@
     <h1>🐤 拯救小鸡</h1>
     <p class="home-user">当前用户：<span class="user-name-display">未登录</span></p>
     <button class="home-btn" onclick="Storage.isLoggedIn() ? (renderLevelMap(), showScreen('level-map')) : showLogin()">开始闯关</button>
-    <button class="home-btn rank" onclick="showLeaderboard()">排行榜</button>
-    <button class="home-btn secondary" onclick="renderGarden(); showScreen('garden')">小鸡花园</button>
-    <button class="home-btn secondary" onclick="renderVocab(); showScreen('vocab')">词汇本</button>
+    <button class="home-btn rank" onclick="navTo('leaderboard')">排行榜</button>
+    <button class="home-btn secondary" onclick="navTo('garden')">小鸡花园</button>
+    <button class="home-btn secondary" onclick="navTo('vocab')">词汇本</button>
+    <button class="home-btn secondary" onclick="navTo('wrong-answers')">错题本</button>
+    <button class="home-btn" id="home-daily-btn" onclick="claimDailyReward()" style="background:linear-gradient(135deg,#f6d365,#fda085);color:#4a3728;">每日登录奖励</button>
     <button class="home-btn secondary" onclick="renderLevelMap(); showScreen('level-map')">关卡地图</button>
     <button class="home-btn" id="nav-login-btn" onclick="showLogin()">登录 / 注册</button>
+    <button class="home-btn danger" id="nav-logout-btn" style="display:none;" onclick="logoutUser()">退出登录</button>
   </div>
 
   <!-- 关卡地图 -->
@@ -212,7 +528,8 @@
 
   <!-- 转场动画页 -->
   <div id="entry-screen" class="screen">
-    <div id="entry-content" style="flex:1;display:flex;align-items:center;justify-content:center;"></div>
+    <div id="entry-chicks" class="entry-chicks" style="text-align:center;padding:10px;font-size:24px;letter-spacing:4px;"></div>
+    <div id="entry-content" style="flex:1;display:flex;align-items:center;justify-content:center;padding:0 20px;"></div>
     <div class="entry-progress"><div id="entry-progress-fill" class="entry-progress-fill"></div></div>
     <div id="entry-progress-text" class="entry-progress-text">0%</div>
     <button class="entry-skip-btn" onclick="showScreen('quiz-screen'); renderQuestion();">跳过 →</button>
@@ -223,9 +540,12 @@
     <div class="quiz-header-top">
       <button class="btn-back" onclick="if(confirm('确定退出答题？')) {showScreen('level-map')}">返回</button>
       <span id="quiz-level-info"></span>
+      <button class="read-btn" onclick="toggleFullscreenArticle()">全屏</button>
       <button class="read-btn" onclick="readArticle()">朗读</button>
+      <button class="read-btn" onclick="togglePause()" id="pause-btn">⏸ 暂停</button>
     </div>
     <div id="quiz-article"></div>
+    <div id="quiz-vocab-area"></div>
     <div id="quiz-dots"></div>
     <div id="quiz-content"></div>
   </div>
@@ -241,6 +561,14 @@
       <div id="result-stars" style="font-size:3em;">⭐⭐⭐</div>
       <div id="result-msg" style="font-size:1.2em;margin:12px 0;"></div>
       <div id="result-score" style="font-size:0.95em;color:#888;"></div>
+      <!-- 救小鸡进度条 -->
+      <div id="rescue-progress-section" style="width:90%;max-width:300px;margin-top:20px;">
+        <div id="rescue-progress-label" style="text-align:center;font-size:0.95em;margin-bottom:8px;"></div>
+        <div class="rescue-progress-bar" style="height:12px;background:#e0e0e0;border-radius:6px;overflow:hidden;">
+          <div id="rescue-progress-fill-result" style="height:100%;width:0%;transition:width 0.5s;"></div>
+        </div>
+        <div id="rescue-progress-hint" style="text-align:center;font-size:0.8em;color:#888;margin-top:6px;"></div>
+      </div>
       <div style="margin-top:24px;">
         <button id="next-level-btn" class="result-btn" onclick="">下一关 →</button>
         <button class="result-btn" style="background:#ff9800;" onclick="renderLevelMap(); showScreen('level-map')">返回地图</button>
@@ -252,17 +580,19 @@
   <div id="garden" class="screen">
     <header class="map-header">
       <button class="btn-back" onclick="showScreen('home')"> 返回</button>
-      <h2>小鸡花园</h2>
-      <span class="user-name-display" style="min-width:50px"></span>
+      <h2>🌸 小鸡花园</h2>
+      <span class="garden-count" id="garden-count">已救回: 0/10</span>
     </header>
-    <div id="garden-content"></div>
+    <div id="garden-content" style="flex:1;overflow-y:auto;padding:12px;">
+      <div class="garden-grid" id="garden-grid"></div>
+    </div>
   </div>
 
   <!-- 词汇本 -->
   <div id="vocab" class="screen">
     <header class="map-header">
       <button class="btn-back" onclick="showScreen('home')"> 返回</button>
-      <h2>词汇本</h2>
+      <h2>📖 词库复习</h2>
       <span class="user-name-display" style="min-width:50px"></span>
     </header>
     <div id="vocab-content"></div>
@@ -276,11 +606,14 @@
       <span style="width:50px"></span>
     </header>
     <div id="settings-content">
+      <div class="settings-item" style="justify-content:center;background:#e8f5e9;color:#2e7d32;">
+        <span id="chicken-count">已救回: 0/10 只</span>
+      </div>
       <div class="settings-item" onclick="toggleSound()">
         <span id="sound-toggle">音效：开</span>
         <span>切换 →</span>
       </div>
-      <div class="settings-item" onclick="showLeaderboard()">
+      <div class="settings-item" onclick="navTo('leaderboard')">
         <span>排行榜</span>
         <span>查看 →</span>
       </div>
@@ -307,22 +640,55 @@
 
   <!-- 底部导航 -->
   <nav class="bottom-nav">
-    <button class="nav-btn" onclick="renderLevelMap(); showScreen('level-map')">
+    <button class="nav-btn" onclick="goHome()">
       <span class="nav-icon">🏠</span><span>首页</span>
     </button>
-    <button class="nav-btn" onclick="renderGarden(); showScreen('garden')">
+    <button class="nav-btn" onclick="navTo('garden')">
       <span class="nav-icon">🐤</span><span>花园</span>
     </button>
-    <button class="nav-btn" onclick="renderVocab(); showScreen('vocab')">
+    <button class="nav-btn" onclick="navTo('achievements')">
+      <span class="nav-icon">🏅</span><span>成就</span>
+    </button>
+    <button class="nav-btn" onclick="navTo('vocab')">
       <span class="nav-icon">📖</span><span>词汇</span>
     </button>
-    <button class="nav-btn" onclick="showLeaderboard()">
-      <span class="nav-icon">🏆</span><span>排行</span>
+    <button class="nav-btn" onclick="navTo('wrong-answers')">
+      <span class="nav-icon">📝</span><span>错题本</span>
     </button>
     <button class="nav-btn" onclick="showSettings()">
       <span class="nav-icon">⚙</span><span>设置</span>
     </button>
   </nav>
+
+  <!-- 错题本 -->
+  <div id="wrong-answers" class="screen wa-screen">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>📝 错题本</h2>
+      <span id="wa-count-badge" style="color:#ffd700;font-size:0.85em;"></span>
+    </header>
+    <div id="wrong-answers-content"></div>
+  </div>
+
+  <!-- v37 成就页 -->
+  <div id="achievements" class="screen">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>🏅 成就勋章</h2>
+      <span id="ach-count" style="color:#ffd700;font-size:0.85em;"></span>
+    </header>
+    <div id="achievements-content"></div>
+  </div>
+
+  <!-- v43 词汇复习模式 -->
+  <div id="vocab-review" class="screen">
+    <header class="review-header">
+      <button class="btn-back" onclick="exitVocabReview()">← 返回</button>
+      <h2>📚 词汇复习</h2>
+      <button class="review-quit-btn" onclick="exitVocabReview()">完成</button>
+    </header>
+    <div id="vocab-review-content" class="review-content"></div>
+  </div>
 
 </div>
 <script src="js/storage.js"></script>
