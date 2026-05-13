@@ -151,6 +151,35 @@
     .review-option.correct { background:#c8e6c9; border-color:#4CAF50; }
     .review-option.wrong { background:#ffcdd2; border-color:#f44336; }
     .review-result { text-align:center; padding:30px 16px; }
+
+    /* v47 生词本 */
+    .vocab-book-page { padding:0 16px; }
+    .vocab-book-stats { display:flex; gap:16px; margin:12px 0; }
+    .vocab-book-stat { flex:1; background:#fff3e0; border-radius:12px; padding:12px; text-align:center; }
+    .vocab-book-stat-num { font-size:1.5em; font-weight:bold; color:#e65100; }
+    .vocab-book-stat-label { font-size:0.85em; color:#777; margin-top:2px; }
+    .vocab-book-filter { margin:12px 0; }
+    .vocab-book-filter select { width:100%; padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:1em; background:#fff; }
+    .vocab-book-list { max-height:calc(100vh - 220px); overflow-y:auto; }
+    .vocab-book-card { background:#fff; border-radius:12px; padding:14px; margin-bottom:10px; border-left:4px solid #ff9800; }
+    .vocab-book-card.mastered { border-left-color:#4CAF50; opacity:0.75; }
+    .vocab-book-word-row { display:flex; justify-content:space-between; align-items:center; }
+    .vocab-book-word { font-size:1.2em; font-weight:bold; color:#4a3728; }
+    .vocab-book-meaning { color:#555; font-size:0.95em; margin:6px 0; }
+    .vocab-book-sentence { color:#888; font-size:0.85em; margin:4px 0; font-style:italic; }
+    .vocab-book-meta { font-size:0.8em; color:#aaa; margin-top:4px; }
+    .vocab-book-actions { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+    .vocab-book-btn { padding:4px 10px; border-radius:6px; border:none; font-size:0.85em; cursor:pointer; }
+    .vocab-book-btn-play { background:#e3f2fd; color:#1565c0; }
+    .vocab-book-btn-master { background:#e8f5e9; color:#2e7d32; }
+    .vocab-book-btn-unmaster { background:#fff3e0; color:#e65100; }
+    .vocab-book-btn-remove { background:#ffebee; color:#c62828; }
+    .vocab-book-export-btns { display:flex; gap:8px; margin:12px 0; }
+    .vocab-book-export-btn { flex:1; padding:8px; border:1px solid #ddd; border-radius:8px; background:#fff; font-size:0.95em; cursor:pointer; text-align:center; }
+    .vocab-book-empty { text-align:center; padding:40px 20px; color:#999; }
+    .vocab-book-empty-icon { font-size:3em; margin-bottom:10px; }
+    .vocab-book-card:active { transform:scale(0.99); }
+
     /* v37 成就系统 */
     .ach-summary { text-align:center; padding:16px 0; }
     .ach-progress-ring { display:inline-block; width:120px; height:120px; }
@@ -775,6 +804,36 @@
       <button class="review-quit-btn" onclick="exitVocabReview()">完成</button>
     </header>
     <div id="vocab-review-content" class="review-content"></div>
+  </div>
+
+  <div id="vocab-book" class="screen">
+    <header class="review-header">
+      <button class="btn-back" onclick="exitVocabBook()">← 返回</button>
+      <h2>📖 生词本</h2>
+      <button class="review-quit-btn" onclick="exitVocabBook()">完成</button>
+    </header>
+    <div class="vocab-book-page">
+      <div class="vocab-book-stats">
+        <div class="vocab-book-stat">
+          <div class="vocab-book-stat-num" id="vb-total-count">0</div>
+          <div class="vocab-book-stat-label">总单词</div>
+        </div>
+        <div class="vocab-book-stat" style="background:#e8f5e9;">
+          <div class="vocab-book-stat-num" style="color:#2e7d32;" id="vb-mastered-count">0</div>
+          <div class="vocab-book-stat-label">已掌握</div>
+        </div>
+      </div>
+      <div class="vocab-book-export-btns">
+        <button class="vocab-book-export-btn" onclick="exportVocabBook('txt')">导出 TXT</button>
+        <button class="vocab-book-export-btn" onclick="exportVocabBook('csv')">导出 CSV</button>
+      </div>
+      <div class="vocab-book-filter">
+        <select id="vb-level-filter" onchange="renderVocabBook()">
+          <option value="">全部文章</option>
+        </select>
+      </div>
+      <div id="vocab-book-list" class="vocab-book-list"></div>
+    </div>
   </div>
 
 </div>
