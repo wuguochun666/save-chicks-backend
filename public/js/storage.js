@@ -11,7 +11,14 @@ const Storage = {
     USER_TOKEN: 'sc_user_token',
     USER_PHONE: 'sc_user_phone',
     USER_NAME: 'sc_user_name',
-    USER_SCHOOL: 'sc_user_school'
+    USER_SCHOOL: 'sc_user_school',
+    WRONG_ANSWERS: 'sc_wrong_answers',   // v36 错题本
+    DAILY_REWARD: 'sc_daily_reward',       // v36 每日奖励
+    COINS: 'sc_coins',                     // v36 金币
+    CHICK_STATES: 'sc_chick_states',        // v36 小鸡花园2.0
+    VOCAB_REVIEW: 'sc_vocab_review',          // v37 词汇复习进度
+    ACHIEVEMENTS: 'sc_achievements',            // v37 成就系统
+    CLICKED_WORDS: 'sc_clicked_words'          // v43 点击单词记录
   },
   init() {
     if (!this.get(this.KEYS.CHICKS)) {
@@ -21,6 +28,13 @@ const Storage = {
       this.set(this.KEYS.VOCAB, []);
       this.set(this.KEYS.CHECKIN, { lastDate: null, streak: 0, history: [] });
       this.set(this.KEYS.SETTINGS, { sound: true });
+      this.set(this.KEYS.WRONG_ANSWERS, []);
+      this.set(this.KEYS.DAILY_REWARD, { lastDate: null, streak: 0, totalDays: 0 });
+      this.set(this.KEYS.COINS, 0);
+      this.set(this.KEYS.CHICK_STATES, {});
+      this.set(this.KEYS.VOCAB_REVIEW, {});
+      this.set(this.KEYS.ACHIEVEMENTS, {});
+      this.set(this.KEYS.CLICKED_WORDS, {});
     }
   },
   get(key) {
@@ -43,7 +57,13 @@ const Storage = {
   },
   setLevelProgress(levelIndex, data) {
     const progress = this.get(this.KEYS.PROGRESS) || Array(30).fill(null).map(() => ({ passed: false, score: 0, stars: 0 }));
-    progress[levelIndex] = { ...progress[levelIndex], ...data };
+    const current = progress[levelIndex] || { passed: false, score: 0, stars: 0 };
+    // 保留最高分，只有当新分数更高时才更新
+    progress[levelIndex] = {
+      passed: data.passed || current.passed,  // 只要通过过就算通过
+      score: Math.max(data.score || 0, current.score || 0),  // 保留最高分
+      stars: Math.max(data.stars || 0, current.stars || 0)   // 保留最高星
+    };
     this.set(this.KEYS.PROGRESS, progress);
   },
   getTotalScore() {
@@ -99,13 +119,326 @@ const Storage = {
     localStorage.removeItem(this.KEYS.USER_SCHOOL);
   },
 
+  // ============== v36 错题本 ==============
+  getWrongAnswers() {
+    return this.get(this.KEYS.WRONG_ANSWERS) || [];
+  },
+  addWrongAnswer(levelIndex, question, userAnswer, correctAnswer, options, explanation) {
+    var wrong = this.getWrongAnswers();
+    var id = levelIndex + '_' + (question.q || question.question || '').substring(0, 20);
+    // 去重：同题只保留最新记录
+    var existing = wrong.findIndex(function(w) { return w.id === id; });
+    var entry = {
+      id: id,
+      levelIndex: levelIndex,
+      question: question.q || question.question || '',
+      userAnswer: userAnswer,
+      correctAnswer: correctAnswer,
+      options: options || [],
+      explanation: explanation || '',
+      timestamp: Date.now()
+    };
+    if (existing >= 0) {
+      wrong[existing] = entry;
+    } else {
+      wrong.push(entry);
+    }
+    this.set(this.KEYS.WRONG_ANSWERS, wrong);
+  },
+  clearWrongAnswers() {
+    this.set(this.KEYS.WRONG_ANSWERS, []);
+  },
+  removeWrongAnswer(id) {
+    var wrong = this.getWrongAnswers().filter(function(w) { return w.id !== id; });
+    this.set(this.KEYS.WRONG_ANSWERS, wrong);
+  },
+
+  // ============== v36 每日登录奖励 ==============
+  getDailyRewardStatus() {
+    return this.get(this.KEYS.DAILY_REWARD) || { lastDate: null, streak: 0, totalDays: 0 };
+  },
+  canClaimDailyReward() {
+    var status = this.getDailyRewardStatus();
+    var today = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
+    return status.lastDate !== today;
+  },
+  claimDailyReward() {
+    var status = this.getDailyRewardStatus();
+    var today = new Date().toISOString().substring(0, 10);
+    var yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+    var streak = (status.lastDate === yesterday) ? (status.streak || 0) + 1 : 1;
+    var totalDays = (status.lastDate === today) ? status.totalDays : (status.totalDays || 0) + 1;
+    status = { lastDate: today, streak: streak, totalDays: totalDays };
+    this.set(this.KEYS.DAILY_REWARD, status);
+    // 计算奖励金币：基础10，每连续1天+5，上限30
+    var coins = Math.min(10 + (streak - 1) * 5, 30);
+    this.addCoins(coins);
+    return { coins: coins, streak: streak };
+  },
+
+  // ============== v36 金币系统 ==============
+  getCoins() {
+    return this.get(this.KEYS.COINS) || 0;
+  },
+  addCoins(amount) {
+    var coins = this.getCoins() + amount;
+    this.set(this.KEYS.COINS, coins);
+    return coins;
+  },
+  spendCoins(amount) {
+    var coins = this.getCoins();
+    if (coins < amount) return false;
+    this.set(this.KEYS.COINS, coins - amount);
+    return true;
+  },
+
   // 获取所有进度数据，用于提交到服务器
   getAllProgress() {
     return {
       progress: this.get(this.KEYS.PROGRESS) || [],
       totalScore: this.getTotalScore(),
       chicksSaved: this.getChicksSaved(),
-      chicks: this.get(this.KEYS.CHICKS) || Array(10).fill(false)
+      chicks: this.get(this.KEYS.CHICKS) || Array(10).fill(false),
+      coins: this.getCoins()
     };
+  },
+
+  // ============== v36 小鸡花园2.0 ==============
+  // 获取小鸡状态
+  getChickStates() {
+    return this.get(this.KEYS.CHICK_STATES) || {};
+  },
+  // 获取单只小鸡状态
+  getChickState(index) {
+    var states = this.getChickStates();
+    return states[index] || { name: null, hunger: 100, costume: null };
+  },
+  // 设置小鸡名字
+  setChickName(index, name) {
+    var states = this.getChickStates();
+    if (!states[index]) states[index] = { name: null, hunger: 100, costume: null };
+    states[index].name = name.substring(0, 8); // 最多8个字符
+    this.set(this.KEYS.CHICK_STATES, states);
+  },
+  // 喂食（增加饱食度）
+  feedChick(index, amount) {
+    var states = this.getChickStates();
+    if (!states[index]) states[index] = { name: null, hunger: 100, costume: null };
+    states[index].hunger = Math.min(100, (states[index].hunger || 100) + amount);
+    this.set(this.KEYS.CHICK_STATES, states);
+  },
+  // 消耗饱食度（每小时-5，最低10）
+  decreaseHunger(index, amount) {
+    var states = this.getChickStates();
+    if (!states[index]) return;
+    states[index].hunger = Math.max(10, (states[index].hunger || 100) - amount);
+    this.set(this.KEYS.CHICK_STATES, states);
+  },
+  // 设置装扮
+  setChickCostume(index, costume) {
+    var states = this.getChickStates();
+    if (!states[index]) states[index] = { name: null, hunger: 100, costume: null };
+    states[index].costume = costume;
+    this.set(this.KEYS.CHICK_STATES, states);
+  },
+
+  // ============== v37 词汇复习（艾宾浩斯遗忘曲线） ==============
+  // 复习间隔（小时）：1h, 6h, 1d, 2d, 4d, 7d, 15d, 30d
+  REVIEW_INTERVALS: [1, 6, 24, 48, 96, 168, 360, 720],
+  getVocabReview() {
+    return this.get(this.KEYS.VOCAB_REVIEW) || {};
+  },
+  // 标记单词需要复习
+  markVocabForReview(word) {
+    var reviews = this.getVocabReview();
+    if (!reviews[word]) {
+      reviews[word] = { level: 0, nextReview: Date.now() + 3600000, correctCount: 0 };
+    }
+    this.set(this.KEYS.VOCAB_REVIEW, reviews);
+  },
+  // 答对复习词 → 推迟下次复习时间
+  reviewVocabCorrect(word) {
+    var reviews = this.getVocabReview();
+    var r = reviews[word];
+    if (!r) return;
+    r.level = Math.min(r.level + 1, this.REVIEW_INTERVALS.length - 1);
+    r.correctCount = (r.correctCount || 0) + 1;
+    r.nextReview = Date.now() + this.REVIEW_INTERVALS[r.level] * 3600000;
+    this.set(this.KEYS.VOCAB_REVIEW, reviews);
+  },
+  // 答错复习词 → 重新开始
+  reviewVocabWrong(word) {
+    var reviews = this.getVocabReview();
+    var r = reviews[word];
+    if (!r) return;
+    r.level = 0;
+    r.nextReview = Date.now() + 3600000; // 1小时后再复习
+    this.set(this.KEYS.VOCAB_REVIEW, reviews);
+  },
+  // 获取今天需要复习的词汇
+  getDueReviewWords() {
+    var reviews = this.getVocabReview();
+    var vocab = this.getVocab();
+    var now = Date.now();
+    var due = [];
+    for (var word in reviews) {
+      if (reviews[word].nextReview <= now) {
+        var v = vocab.find(function(item) { return item.word === word; });
+        if (v) {
+          due.push({ word: v.word, meaning: v.meaning, level: reviews[word].level, correctCount: reviews[word].correctCount || 0 });
+        }
+      }
+    }
+    return due;
+  },
+  // 获取词汇掌握程度统计
+  getVocabMastery() {
+    var reviews = this.getVocabReview();
+    var vocab = this.getVocab();
+    var mastered = 0, learning = 0, newWords = 0;
+    vocab.forEach(function(v) {
+      var r = reviews[v.word];
+      if (!r || r.level === 0) newWords++;
+      else if (r.level >= 5) mastered++;
+      else learning++;
+    });
+    return { total: vocab.length, mastered: mastered, learning: learning, newWords: newWords };
+  },
+
+  // ============== v37 成就系统 ==============
+  ACHIEVEMENT_DEFS: [
+    { id: 'first_login', name: '初来乍到', desc: '首次登录游戏', icon: '👋' },
+    { id: 'first_star', name: '第一颗星', desc: '获得第一颗星', icon: '⭐' },
+    { id: 'star_10', name: '星星收集者', desc: '累计获得10颗星', icon: '🌟' },
+    { id: 'star_30', name: '星光闪耀', desc: '累计获得30颗星', icon: '💫' },
+    { id: 'star_60', name: '星河璀璨', desc: '累计获得60颗星', icon: '✨' },
+    { id: 'chick_1', name: '初次救援', desc: '救回第1只小鸡', icon: '🐤' },
+    { id: 'chick_5', name: '半数营救', desc: '救回5只小鸡', icon: '🐔' },
+    { id: 'chick_10', name: '全部救回', desc: '救回全部10只小鸡', icon: '🏆' },
+    { id: 'perfect', name: '完美通关', desc: '任意关卡满分三星', icon: '💯' },
+    { id: 'vocab_10', name: '词汇新手', desc: '词汇本收集10个词', icon: '📖' },
+    { id: 'vocab_30', name: '词汇达人', desc: '词汇本收集30个词', icon: '📚' },
+    { id: 'vocab_master', name: '词汇大师', desc: '掌握10个词汇', icon: '🎓' },
+    { id: 'streak_3', name: '连续打卡3天', desc: '连续登录3天', icon: '🔥' },
+    { id: 'streak_7', name: '一周不懈', desc: '连续登录7天', icon: '🔥' },
+    { id: 'coins_100', name: '小有积蓄', desc: '累计获得100金币', icon: '💰' },
+    { id: 'coins_500', name: '金库满满', desc: '累计获得500金币', icon: '💎' }
+  ],
+  getAchievements() {
+    return this.get(this.KEYS.ACHIEVEMENTS) || {};
+  },
+  unlockAchievement(id) {
+    var ach = this.getAchievements();
+    if (ach[id]) return null; // 已解锁
+    ach[id] = { unlockedAt: Date.now() };
+    this.set(this.KEYS.ACHIEVEMENTS, ach);
+    // 返回成就信息用于弹窗通知
+    var def = this.ACHIEVEMENT_DEFS.find(function(d) { return d.id === id; });
+    return def || null;
+  },
+  isAchievementUnlocked(id) {
+    return !!(this.getAchievements()[id]);
+  },
+  // 检查并触发所有可能的成就
+  checkAchievements() {
+    var newlyUnlocked = [];
+    var self = this;
+    var totalStars = 0;
+    var prog = this.get(this.KEYS.PROGRESS) || [];
+    prog.forEach(function(p) { if (p) totalStars += (p.stars || 0); });
+    var chicksSaved = this.getChicksSaved();
+    var vocabCount = (this.getVocab() || []).length;
+    var mastery = this.getVocabMastery();
+    var daily = this.getDailyRewardStatus();
+    var coins = this.getCoins();
+    var hasPerfect = prog.some(function(p) { return p && p.stars === 3 && p.score === 100; });
+
+    var checks = [
+      { id: 'first_login', cond: this.isLoggedIn() },
+      { id: 'first_star', cond: totalStars >= 1 },
+      { id: 'star_10', cond: totalStars >= 10 },
+      { id: 'star_30', cond: totalStars >= 30 },
+      { id: 'star_60', cond: totalStars >= 60 },
+      { id: 'chick_1', cond: chicksSaved >= 1 },
+      { id: 'chick_5', cond: chicksSaved >= 5 },
+      { id: 'chick_10', cond: chicksSaved >= 10 },
+      { id: 'perfect', cond: hasPerfect },
+      { id: 'vocab_10', cond: vocabCount >= 10 },
+      { id: 'vocab_30', cond: vocabCount >= 30 },
+      { id: 'vocab_master', cond: mastery.mastered >= 10 },
+      { id: 'streak_3', cond: (daily.streak || 0) >= 3 },
+      { id: 'streak_7', cond: (daily.streak || 0) >= 7 },
+      { id: 'coins_100', cond: coins >= 100 },
+      { id: 'coins_500', cond: coins >= 500 }
+    ];
+
+    checks.forEach(function(c) {
+      if (c.cond && !self.isAchievementUnlocked(c.id)) {
+        var result = self.unlockAchievement(c.id);
+        if (result) newlyUnlocked.push(result);
+      }
+    });
+
+    return newlyUnlocked;
   }
 };
+
+// ============== v43 点击单词记录（词汇复习模式） ==============
+(function() {
+  Storage.getClickedWords = function() {
+    return this.get(this.KEYS.CLICKED_WORDS) || {};
+  };
+  
+  // 获取某关卡的点击单词
+  Storage.getClickedWordsForLevel = function(levelIndex) {
+    var clicked = this.getClickedWords();
+    return clicked[levelIndex] || [];
+  };
+  
+  // 添加点击的单词
+  Storage.addClickedWord = function(levelIndex, word, meaning) {
+    var clicked = this.getClickedWords();
+    if (!clicked[levelIndex]) {
+      clicked[levelIndex] = [];
+    }
+    // 去重
+    var exists = clicked[levelIndex].some(function(item) {
+      return item.word === word;
+    });
+    if (!exists && word && word.length > 1) {
+      clicked[levelIndex].push({
+        word: word,
+        meaning: meaning || '',
+        clickedAt: Date.now()
+      });
+      this.set(this.KEYS.CLICKED_WORDS, clicked);
+    }
+  };
+  
+  // 清空某关卡的点击记录
+  Storage.clearClickedWordsForLevel = function(levelIndex) {
+    var clicked = this.getClickedWords();
+    delete clicked[levelIndex];
+    this.set(this.KEYS.CLICKED_WORDS, clicked);
+  };
+  
+  // 获取所有点击过的单词（用于复习模式）
+  Storage.getAllClickedWords = function() {
+    var clicked = this.getClickedWords();
+    var allWords = [];
+    for (var levelIndex in clicked) {
+      if (clicked.hasOwnProperty(levelIndex)) {
+        clicked[levelIndex].forEach(function(item) {
+          // 去重
+          var exists = allWords.some(function(w) {
+            return w.word === item.word;
+          });
+          if (!exists) {
+            allWords.push(item);
+          }
+        });
+      }
+    }
+    return allWords;
+  };
+})();
