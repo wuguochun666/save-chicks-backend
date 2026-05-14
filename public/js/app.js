@@ -1116,7 +1116,10 @@ function quitFromPause() {
 
 // ==================== 完成关卡 ====================
 function finishLevel() {
-  var story = STORIES[currentLevel];
+  // v76: find actual STORIES index (for recommended articles with id >= 100)
+  var _actualIdx = (currentLevel >= 100) ? STORIES.findIndex(function(s){return s.id===currentLevel}) : currentLevel;
+  if(_actualIdx < 0) _actualIdx = currentLevel;
+  var story = STORIES[_actualIdx];
   var correctCount = answers.filter(function(a) { return a; }).length;
   var totalQ = story.questions.length;
   var score = Math.round((correctCount / totalQ) * 100);
@@ -1126,7 +1129,7 @@ function finishLevel() {
   else if (score >= 60) stars = 1;
   var passed = stars === 3;
   if (passed) {
-    Storage.setLevelProgress(currentLevel, { passed: true, score: score, stars: stars });
+    Storage.setLevelProgress(_actualIdx, { passed: true, score: score, stars: stars });
     Storage.addScore(score);
     Storage.recordArticleRead(); // v50 记录阅读文章
   }
@@ -1137,7 +1140,7 @@ function finishLevel() {
     Storage.addCoins(coinsEarned);
   }
   // 救小鸡
-  var chickIdx = RESCUE_LEVELS.indexOf(currentLevel);
+  var chickIdx = (_actualIdx >= 0 && _actualIdx < TOTAL_LEVELS) ? RESCUE_LEVELS.indexOf(_actualIdx) : -1;
   var rescuedChick = false;
   if (passed && chickIdx !== -1) {
     var chicks = Storage.get(Storage.KEYS.CHICKS);
@@ -2978,6 +2981,121 @@ function animateNewDot() {
     dots[currentQuestionIndex].classList.add('current');
   }
 }
+
+
+// ===== v76 task-009: Smart article recommendation =====
+var _currentDifficulty = 'easy';
+
+function getPlayerDifficulty() {
+  // Calculate player level based on stats
+  var stats = Storage.getLearningStats ? Storage.getLearningStats() : {};
+  var correctRate = stats.correctRate || 0;
+  var articlesRead = stats.articlesRead || 0;
+  var wordsLearned = (stats.masteredWords || 0) + (stats.vocabCount || 0);
+  var streakDays = stats.streak || 0;
+  // Score: weighted combination
+  var score = correctRate * 0.4 + Math.min(articlesRead / 20, 1) * 0.3 + Math.min(wordsLearned / 50, 1) * 0.2 + Math.min(streakDays / 14, 1) * 0.1;
+  if (score >= 0.7) return 'hard';
+  if (score >= 0.4) return 'medium';
+  return 'easy';
+}
+
+function showRecommendationPage() {
+  showScreen('recommend-page');
+  var level = getPlayerDifficulty();
+  _currentDifficulty = level;
+  updatePlayerLevelCard(level);
+  switchDifficulty(level);
+}
+
+function updatePlayerLevelCard(level) {
+  var names = {'easy': '🌱 入门', 'medium': '📚 进阶', 'hard': '🔥 挑战'};
+  var descs = {
+    'easy': '基于你的学习数据，我们推荐从简单文章开始',
+    'medium': '基于你的学习数据，我们推荐进阶难度文章',
+    'hard': '基于你的学习数据，我们推荐挑战级文章'
+  };
+  document.getElementById('player-level-name').textContent = names[level] || names['easy'];
+  document.getElementById('player-level-desc').textContent = descs[level] || descs['easy'];
+}
+
+function switchDifficulty(diff) {
+  _currentDifficulty = diff;
+  // Update tab active state
+  document.querySelectorAll('.diff-tab').forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('data-diff') === diff);
+  });
+  renderArticleList(diff);
+}
+
+function renderArticleList(diff) {
+  // Filter new articles by difficulty
+  var diffStories = STORIES.filter(function(s) { return s.difficulty === diff; });
+  var existingProgress = Storage.get(Storage.KEYS.PROGRESS) || [];
+  var html = '';
+  diffStories.forEach(function(s) {
+    // Check if this article was already completed
+    var completed = existingProgress[s.id] && existingProgress[s.id].stars > 0;
+    var starsDisplay = completed ? '⭐'.repeat(existingProgress[s.id].stars) : '';
+    var topics = (s.topics || []).join(', ');
+    var badgeClass = diff === 'easy' ? 'badge-easy' : (diff === 'medium' ? 'badge-medium' : 'badge-hard');
+    var topicIcon = topics.indexOf('science') >= 0 ? '🔬' :
+                    topics.indexOf('technology') >= 0 ? '💻' :
+                    topics.indexOf('health') >= 0 ? '💚' :
+                    topics.indexOf('environment') >= 0 ? '🌍' :
+                    topics.indexOf('culture') >= 0 ? '🎭' :
+                    topics.indexOf('life') >= 0 ? '🌿' :
+                    topics.indexOf('nature') >= 0 ? '🌊' :
+                    topics.indexOf('history') >= 0 ? '📜' :
+                    '📖';
+    html += '<li class="article-card" onclick="startRecommendedArticle(' + s.id + ')">' +
+      '<div class="art-icon">' + topicIcon + '</div>' +
+      '<div class="art-info">' +
+        '<div class="art-title">' + (completed ? '✅ ' : '') + s.title + ' ' + starsDisplay + '</div>' +
+        '<div class="art-meta">' +
+          '<span>' + (s.vocabulary ? s.vocabulary.length : 0) + ' 词汇</span>' +
+          '<span>' + s.questions.length + ' 题</span>' +
+          '<span>' + (topics || '综合') + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<span class="art-badge ' + badgeClass + '">' + (diff === 'easy' ? '入门' : (diff === 'medium' ? '进阶' : '挑战')) + '</span>' +
+    '</li>';
+  });
+  var listEl = document.getElementById('article-list');
+  if (listEl) listEl.innerHTML = html;
+  var countEl = document.getElementById('article-count');
+  if (countEl) countEl.textContent = '共 ' + diffStories.length + ' 篇文章';
+}
+
+function startRecommendedArticle(storyId) {
+  // Find the story in STORIES
+  var story = STORIES.find(function(s) { return s.id === storyId; });
+  if (!story) {
+    showToast('文章未找到', 2000);
+    return;
+  }
+  // Store as special currentLevel
+  currentLevel = storyId;
+  // Track that this article is being read (for stats)
+  showScreen('quiz-screen');
+  currentQuestionIndex = 0;
+  answers = [];
+  selectedAnswers = [];
+  answers.push = answers.push; // Already handled
+  startTimer();
+  renderQuestion();
+  showToast('开始阅读: ' + story.title, 2000);
+}
+
+// Hook: after finishLevel, record the recommended article as read
+var _orig_finishLevel = finishLevel;
+finishLevel = function() {
+  var wasRecommended = currentLevel >= 100; // Recommended articles have id >= 100
+  _orig_finishLevel.apply(this, arguments);
+  if (wasRecommended && Storage.recordArticleRead) {
+    // Don't double-record - finishLevel already calls recordArticleRead
+  }
+};
 
 document.addEventListener('DOMContentLoaded', function() {
   Storage.init();
