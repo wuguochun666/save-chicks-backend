@@ -1070,6 +1070,7 @@ function selectAnswer(userInput) {
       correctDisplay = ('ABCDE')[correctIdx] + '. ' + (options[correctIdx] || '');
       userDisplay = ('ABCDE')[idx] + '. ' + (options[idx] || '');
     } else {
+      Storage.resetQuizStreak(); // v86
       options = ['错误 (False)', '正确 (True)'];
       correctDisplay = Number(correctIdx) === 1 ? 'A. 正确 (True)' : 'B. 错误 (False)';
       userDisplay = idx === 1 ? 'A. 正确 (True)' : 'B. 错误 (False)';
@@ -1112,6 +1113,12 @@ function selectAnswer(userInput) {
   updateQuizProgress(); // v51 update progress after each answer
   selectedAnswers.push(userInput);
   Sound.play(correct ? 'win' : 'fail');
+  // v86: Track quiz streak
+  if (correct) {
+    Storage.incrementQuizStreak();
+  } else {
+    Storage.resetQuizStreak();
+  }
 
   // === 答错:收集到错题本 + 加入词汇本 ===
   if (!correct) {
@@ -1143,6 +1150,7 @@ function selectAnswer(userInput) {
     }
     feedbackHtml += '</div>';
   } else {
+      Storage.resetQuizStreak(); // v86
     feedbackHtml = '<div class="qa-feedback" style="border-left-color:#4CAF50;background:#e8f5e9;">' +
       '<div class="qa-correct-text" style="font-size:1em;">✅ 正确!</div></div>';
   }
@@ -1166,6 +1174,7 @@ function selectAnswer(userInput) {
     if (currentQuestionIndex >= story.questions.length) {
       finishLevel();
     } else {
+      Storage.resetQuizStreak(); // v86
       renderQuestion();
     }
   }, delay);
