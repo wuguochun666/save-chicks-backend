@@ -4177,3 +4177,275 @@ function initLanguage() {
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', initLanguage);
 }
+
+// ==================== v95 家长监控功能 (task-015) ====================
+var parentalState = {
+  sessionStart: null,
+  breakReminderShown: false,
+  breakDismissed: false,
+  last25minCheck: 0,
+  locked: false
+};
+
+function initParentalMonitoring() {
+  var todayMinutes = Storage.getTodayUsageMinutes();
+  var limit = Storage.getParentalDailyLimit();
+  if (todayMinutes >= limit && limit > 0) {
+    parentalState.locked = true;
+    showScreen('parental-lockout');
+    return;
+  }
+  var pwd = Storage.getParentalPassword();
+  if (!pwd) return;
+  parentalState.sessionStart = Date.now();
+  parentalState.breakDismissed = false;
+  parentalState.last25minCheck = Date.now();
+  startBreakReminderTimer();
+}
+
+function startBreakReminderTimer() {
+  setInterval(function() {
+    if (parentalState.locked) return;
+    var pwd = Storage.getParentalPassword();
+    if (!pwd) return;
+    if (parentalState.breakDismissed) return;
+    var elapsed = Date.now() - parentalState.last25minCheck;
+    if (elapsed >= 25 * 60 * 1000) {
+      parentalState.breakReminderShown = true;
+      showScreen('parental-break-reminder');
+    }
+  }, 10000);
+}
+
+function trackParentalUsage() {
+  if (!parentalState.sessionStart || parentalState.locked) return;
+  var pwd = Storage.getParentalPassword();
+  if (!pwd) return;
+  var elapsed = Date.now() - parentalState.sessionStart;
+  var minutes = Math.floor(elapsed / 60000);
+  if (minutes > 0) {
+    Storage.addTodayUsageMinutes(minutes);
+    parentalState.sessionStart = Date.now();
+    var todayMinutes = Storage.getTodayUsageMinutes();
+    var limit = Storage.getParentalDailyLimit();
+    if (todayMinutes >= limit && limit > 0) {
+      parentalState.locked = true;
+      showScreen('parental-lockout');
+    }
+  }
+}
+
+function dismissBreakReminder() {
+  parentalState.breakDismissed = true;
+  parentalState.last25minCheck = Date.now();
+  Storage.incrementBreakCount();
+  goBack();
+}
+
+function continueAnyway() {
+  parentalState.breakDismissed = true;
+  parentalState.last25minCheck = Date.now();
+  Storage.incrementBreakCount();
+  goBack();
+}
+
+function showParentalPanel() {
+  var pwd = Storage.getParentalPassword();
+  if (!pwd) {
+    showScreen('parental-setup');
+  } else {
+    showScreen('parental-verify');
+  }
+}
+
+function confirmParentalPassword() {
+  var p1 = document.getElementById('parental-pwd-1').value;
+  var p2 = document.getElementById('parental-pwd-2').value;
+  var p3 = document.getElementById('parental-pwd-3').value;
+  var p4 = document.getElementById('parental-pwd-4').value;
+  var pwd = p1 + p2 + p3 + p4;
+  if (pwd.length !== 4) {
+    document.getElementById('parental-pwd-hint').textContent = '请输入4位数字密码';
+    return;
+  }
+  Storage.setParentalPassword(pwd);
+  showToast('家长密码已设置');
+  for (var i = 1; i <= 4; i++) { document.getElementById('parental-pwd-' + i).value = ''; }
+  showScreen('settings');
+}
+
+function checkParentalPassword() {
+  var p1 = document.getElementById('parental-verify-1').value;
+  var p2 = document.getElementById('parental-verify-2').value;
+  var p3 = document.getElementById('parental-verify-3').value;
+  var p4 = document.getElementById('parental-verify-4').value;
+  var input = p1 + p2 + p3 + p4;
+  var correct = Storage.getParentalPassword();
+  if (input === correct) {
+    for (var i = 1; i <= 4; i++) { document.getElementById('parental-verify-' + i).value = ''; }
+    document.getElementById('parental-verify-hint').textContent = '';
+    renderParentalPanel();
+    showScreen('parental-panel');
+  } else {
+    document.getElementById('parental-verify-hint').textContent = '密码错误，请重试';
+    for (var i = 1; i <= 4; i++) { document.getElementById('parental-verify-' + i).value = ''; }
+    document.getElementById('parental-verify-1').focus();
+  }
+}
+
+function renderParentalPanel() {
+  var limit = Storage.getParentalDailyLimit();
+  var todayMins = Storage.getTodayUsageMinutes();
+  var breakCount = Storage.getParentalBreakCount();
+  var usageLog = Storage.getParentalUsageLog();
+  var html = '<div style="font-family:Arial,sans-serif;">';
+  html += '<div style="background:#fff3e0;border-radius:12px;padding:16px;margin-bottom:16px;text-align:center;">';
+  html += '<h3 style="color:#e65100;margin:0 0 8px;">今日学习时长</h3>';
+  html += '<div style="font-size:36px;font-weight:bold;color:#e65100;">' + todayMins + ' / ' + limit + ' 分钟</div>';
+  html += '<div style="background:#ffe0b2;border-radius:50px;height:12px;margin-top:10px;">';
+  var pct = Math.min(100, Math.round((todayMins / limit) * 100));
+  html += '<div style="background:#ff9800;border-radius:50px;height:12px;width:' + pct + '%;"></div>';
+  html += '</div></div>';
+  html += '<h3 style="color:#333;border-bottom:1px solid #eee;padding-bottom:8px;">每日时长限制</h3>';
+  html += '<select id="parental-limit-select" onchange="setParentalDailyLimitUI(this.value)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;font-size:16px;margin-bottom:16px;">';
+  var limits = [0, 30, 60, 90, 120, 180];
+  for (var li = 0; li < limits.length; li++) {
+    var sel = limits[li] === limit ? ' selected' : '';
+    var label = limits[li] === 0 ? '不限制' : limits[li] + ' 分钟';
+    html += '<option value="' + limits[li] + '"' + sel + '>' + label + '</option>';
+  }
+  html += '</select>';
+  html += '<h3 style="color:#333;border-bottom:1px solid #eee;padding-bottom:8px;">学习数据（近30天）</h3>';
+  if (usageLog.length === 0) {
+    html += '<p style="color:#999;text-align:center;padding:20px;">暂无学习记录</p>';
+  } else {
+    var last7 = usageLog.slice(-7);
+    var maxMins = Math.max.apply(null, last7.map(function(e){return e.minutes||1;}));
+    html += '<div style="display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:8px;">';
+    for (var di = 0; di < last7.length; di++) {
+      var h = Math.round((last7[di].minutes / maxMins) * 70);
+      html += '<div style="flex:1;text-align:center;"><div style="background:#4CAF50;border-radius:4px 4px 0 0;height:' + (h||4) + 'px;" title="' + last7[di].minutes + '分钟"></div><div style="font-size:10px;color:#888;margin-top:2px;">' + last7[di].date.slice(5) + '</div></div>';
+    }
+    html += '</div>';
+  }
+  html += '<div style="background:#fce4ec;border-radius:12px;padding:16px;margin:16px 0;text-align:center;">';
+  html += '<h3 style="color:#c2185b;margin:0 0 8px;">休息提醒关闭次数</h3>';
+  html += '<div style="font-size:36px;font-weight:bold;color:#c2185b;">' + breakCount + ' 次</div>';
+  html += '</div>';
+  html += '<h3 style="color:#333;border-bottom:1px solid #eee;padding-bottom:8px;">内容过滤（限制关卡）</h3>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">';
+  var blockedLevels = Storage.getParentalBlockedLevels();
+  for (var lv = 1; lv <= 30; lv++) {
+    var isBlocked = blockedLevels.indexOf(lv) !== -1;
+    var bg = isBlocked ? '#f44336' : '#e0e0e0';
+    var fc = isBlocked ? '#fff' : '#333';
+    html += '<span onclick="toggleLevelBlock(' + lv + ')" style="display:inline-block;width:36px;height:36px;line-height:36px;text-align:center;border-radius:8px;background:' + bg + ';color:' + fc + ';font-size:14px;cursor:pointer;">' + lv + '</span>';
+  }
+  html += '</div>';
+  html += '<p style="color:#888;font-size:12px;">点击关卡数字可切换限制/解锁</p>';
+  html += '<button onclick="changeParentalPassword()" style="width:100%;padding:12px;background:#9e9e9e;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer;margin-top:8px;">修改家长密码</button>';
+  html += '<button onclick="clearParentalControl()" style="width:100%;padding:12px;background:#ffebee;color:#c62828;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:8px;">清除家长监控</button>';
+  html += '</div>';
+  document.getElementById('parental-content').innerHTML = html;
+}
+
+function setParentalDailyLimitUI(minutes) {
+  Storage.setParentalDailyLimit(parseInt(minutes));
+  renderParentalPanel();
+  showToast('每日时长已更新');
+}
+
+function toggleLevelBlock(levelId) {
+  var blocked = Storage.getParentalBlockedLevels();
+  var idx = blocked.indexOf(levelId);
+  if (idx !== -1) { blocked.splice(idx, 1); }
+  else { blocked.push(levelId); }
+  Storage.setParentalBlockedLevels(blocked);
+  renderParentalPanel();
+}
+
+function changeParentalPassword() {
+  showScreen('parental-setup');
+}
+
+function clearParentalControl() {
+  if (!confirm('确定要清除所有家长监控设置吗？')) return;
+  var keys = ['sc_parental_password','sc_parental_daily_limit','sc_parental_usage_log','sc_parental_break_count','sc_parental_blocked_levels','sc_parental_session_start','sc_parental_total_today','sc_parental_last_date'];
+  for (var i = 0; i < keys.length; i++) { localStorage.removeItem(keys[i]); }
+  parentalState.locked = false;
+  showToast('家长监控已清除');
+  showScreen('settings');
+}
+
+function exitParentalPanel() {
+  showScreen('settings');
+}
+
+function checkLevelBlocked(levelId) {
+  var pwd = Storage.getParentalPassword();
+  if (!pwd) return false;
+  return Storage.isLevelBlocked(levelId);
+}
+
+// Hook into startLevel
+if (typeof startLevel !== 'undefined') {
+  var _origStartLevel = startLevel;
+  startLevel = function(levelId) {
+    if (checkLevelBlocked(levelId)) {
+      showToast('该关卡已被家长限制');
+      return;
+    }
+    _origStartLevel(levelId);
+  };
+}
+
+setInterval(trackParentalUsage, 60000);
+
+window.addEventListener('DOMContentLoaded', function() {
+  initParentalMonitoring();
+  // Password input auto-advance
+  var pwdInputs = ['parental-pwd-1','parental-pwd-2','parental-pwd-3','parental-pwd-4'];
+  for (var i = 0; i < pwdInputs.length; i++) {
+    (function(idx) {
+      var el = document.getElementById(pwdInputs[idx]);
+      if (!el) return;
+      el.addEventListener('input', function() {
+        if (this.value.length === 1 && idx < 3) {
+          var next = document.getElementById(pwdInputs[idx + 1]);
+          if (next) next.focus();
+        }
+        if (idx === 3 && this.value.length === 1) {
+          confirmParentalPassword();
+        }
+      });
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Backspace' && !this.value && idx > 0) {
+          var prev = document.getElementById(pwdInputs[idx - 1]);
+          if (prev) prev.focus();
+        }
+      });
+    })(i);
+  }
+  var verifyInputs = ['parental-verify-1','parental-verify-2','parental-verify-3','parental-verify-4'];
+  for (var j = 0; j < verifyInputs.length; j++) {
+    (function(idx) {
+      var el = document.getElementById(verifyInputs[idx]);
+      if (!el) return;
+      el.addEventListener('input', function() {
+        if (this.value.length === 1 && idx < 3) {
+          var next = document.getElementById(verifyInputs[idx + 1]);
+          if (next) next.focus();
+        }
+        if (idx === 3 && this.value.length === 1) {
+          checkParentalPassword();
+        }
+      });
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Backspace' && !this.value && idx > 0) {
+          var prev = document.getElementById(verifyInputs[idx - 1]);
+          if (prev) prev.focus();
+        }
+      });
+    })(j);
+  }
+});
