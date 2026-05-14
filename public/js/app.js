@@ -3909,3 +3909,271 @@ function exportPdfReport() {
     showToast('PDF export failed, please check jsPDF library is loaded');
   }
 }
+
+// ==================== v94 多语言支持 (i18n) ====================
+var I18N = {
+  currentLang: 'zh',
+  dict: {
+    zh: {
+      // Navigation
+      'btn-back': '返回',
+      'btn-home': '首页',
+      // Home
+      'home-title': '拯救小鸡',
+      'home-start': '开始闯关',
+      'home-rank': '排行榜',
+      'home-garden': '小鸡花园',
+      'home-vocab': '词汇本',
+      'home-daily-goal': '每日目标',
+      'home-wrong': '错题本',
+      'home-daily-reward': '每日登录奖励',
+      'home-level-map': '关卡地图',
+      'home-login': '登录 / 注册',
+      'home-logout': '退出登录',
+      'home-progress': '今日进度',
+      'home-streak': '连击',
+      'home-goal-met': '已完成',
+      'home-report': '学习报告',
+      // Settings
+      'settings-title': '设置',
+      'settings-chickens': '已救回',
+      'settings-sound': '音效',
+      'settings-music': '音乐',
+      'settings-volume': '音乐音量',
+      'settings-track': '曲目',
+      'settings-theme': '主题',
+      'settings-language': '语言',
+      'settings-light': '浅色',
+      'settings-dark': '深色',
+      'settings-on': '开',
+      'settings-off': '关',
+      // Quiz
+      'quiz-correct': '正确',
+      'quiz-wrong': '错误',
+      'quiz-submit': '提交',
+      'quiz-next': '下一题',
+      'quiz-finish': '完成',
+      'quiz-exit': '退出',
+      'quiz-level': '第',
+      'quiz-level-end': '关',
+      'quiz-score': '得分',
+      'quiz-streak': '连击',
+      'quiz-time': '用时',
+      // Level result
+      'result-pass': '通关成功',
+      'result-fail': '闯关失败',
+      'result-stars': '获得星星',
+      'result-retry': '重试',
+      'result-next': '下一关',
+      'result-home': '返回',
+      'result-perfect': '完美通关',
+      // Vocab
+      'vocab-title': '词汇本',
+      'vocab-add': '加入生词本',
+      'vocab-remove': '移出生词本',
+      'vocab-mastered': '已掌握',
+      'vocab-review': '复习',
+      // Achievements
+      'ach-title': '成就',
+      'ach-unlocked': '已解锁',
+      'ach-total': '共',
+      // Leaderboard
+      'lb-title': '排行榜',
+      'lb-rank': '第',
+      'lb-star': '星星',
+      'lb-chick': '小鸡',
+      // Daily goal
+      'goal-title': '每日目标',
+      'goal-articles': '阅读文章',
+      'goal-words': '学习单词',
+      'goal-save': '保存',
+      // Garden
+      'garden-title': '小鸡花园',
+      'garden-feed': '喂食',
+      'garden-shop': '商店',
+      'garden-costume': '装扮',
+      // PDF Report
+      'pdf-title': '学习报告',
+      'pdf-overview': '学习概览',
+      'pdf-achievements': '成就列表',
+      'pdf-vocab': '词汇统计',
+      'pdf-streak': '打卡记录',
+      'pdf-levels': '关卡进度',
+      'pdf-export': '导出 PDF 报告',
+      // General
+      'general-days': '天',
+      'general-questions': '题',
+      'general-coins': '金币',
+      'general-articles': '篇',
+      'general-words': '个',
+    },
+    en: {
+      // Navigation
+      'btn-back': 'Back',
+      'btn-home': 'Home',
+      // Home
+      'home-title': 'Save The Chicks',
+      'home-start': 'Start',
+      'home-rank': 'Rank',
+      'home-garden': 'Garden',
+      'home-vocab': 'Vocab',
+      'home-daily-goal': 'Daily Goal',
+      'home-wrong': 'Wrong Answers',
+      'home-daily-reward': 'Daily Reward',
+      'home-level-map': 'Levels',
+      'home-login': 'Login / Register',
+      'home-logout': 'Logout',
+      'home-progress': 'Today\'s Progress',
+      'home-streak': 'Streak',
+      'home-goal-met': 'Goal Met',
+      'home-report': 'Report',
+      // Settings
+      'settings-title': 'Settings',
+      'settings-chickens': 'Saved',
+      'settings-sound': 'Sound',
+      'settings-music': 'Music',
+      'settings-volume': 'Music Volume',
+      'settings-track': 'Track',
+      'settings-theme': 'Theme',
+      'settings-language': 'Language',
+      'settings-light': 'Light',
+      'settings-dark': 'Dark',
+      'settings-on': 'On',
+      'settings-off': 'Off',
+      // Quiz
+      'quiz-correct': 'Correct',
+      'quiz-wrong': 'Wrong',
+      'quiz-submit': 'Submit',
+      'quiz-next': 'Next',
+      'quiz-finish': 'Finish',
+      'quiz-exit': 'Exit',
+      'quiz-level': 'Level',
+      'quiz-level-end': '',
+      'quiz-score': 'Score',
+      'quiz-streak': 'Streak',
+      'quiz-time': 'Time',
+      // Level result
+      'result-pass': 'Passed!',
+      'result-fail': 'Failed',
+      'result-stars': 'Stars',
+      'result-retry': 'Retry',
+      'result-next': 'Next',
+      'result-home': 'Home',
+      'result-perfect': 'Perfect!',
+      // Vocab
+      'vocab-title': 'Vocabulary',
+      'vocab-add': 'Add to Book',
+      'vocab-remove': 'Remove',
+      'vocab-mastered': 'Mastered',
+      'vocab-review': 'Review',
+      // Achievements
+      'ach-title': 'Achievements',
+      'ach-unlocked': 'Unlocked',
+      'ach-total': 'of',
+      // Leaderboard
+      'lb-title': 'Leaderboard',
+      'lb-rank': '#',
+      'lb-star': 'Stars',
+      'lb-chick': 'Chicks',
+      // Daily goal
+      'goal-title': 'Daily Goal',
+      'goal-articles': 'Read Articles',
+      'goal-words': 'Learn Words',
+      'goal-save': 'Save',
+      // Garden
+      'garden-title': 'Garden',
+      'garden-feed': 'Feed',
+      'garden-shop': 'Shop',
+      'garden-costume': 'Costume',
+      // PDF Report
+      'pdf-title': 'Report',
+      'pdf-overview': 'Overview',
+      'pdf-achievements': 'Achievements',
+      'pdf-vocab': 'Vocabulary',
+      'pdf-streak': 'Check-in',
+      'pdf-levels': 'Levels',
+      'pdf-export': 'Export PDF',
+      // General
+      'general-days': 'days',
+      'general-questions': 'questions',
+      'general-coins': 'coins',
+      'general-articles': 'articles',
+      'general-words': 'words',
+    }
+  }
+};
+
+// Get translated text
+function t(key) {
+  var lang = I18N.currentLang;
+  return I18N.dict[lang][key] || key;
+}
+
+// Toggle language
+function toggleLanguage() {
+  var current = I18N.currentLang;
+  var newLang = current === 'zh' ? 'en' : 'zh';
+  changeLanguage(newLang);
+}
+
+// Change language
+function changeLanguage(lang) {
+  if (lang !== 'zh' && lang !== 'en') return;
+  I18N.currentLang = lang;
+  localStorage.setItem('sc_language', lang);
+  
+  // Update language toggle button text
+  var langToggle = document.getElementById('language-toggle');
+  if (langToggle) {
+    langToggle.textContent = (lang === 'zh' ? '语言：中文' : 'Language: English');
+  }
+  
+  // Apply translations to page
+  applyTranslations();
+}
+
+// Apply translations to UI elements
+function applyTranslations() {
+  var lang = I18N.currentLang;
+  
+  // Update dynamic text elements
+  var mappings = {
+    'home-title': ['h1', null],
+    'home-start': ['.home-btn', 0],
+  };
+  
+  // Update all translatable elements with data-i18n attribute
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var key = el.getAttribute('data-i18n');
+    if (I18N.dict[lang][key]) {
+      el.textContent = I18N.dict[lang][key];
+    }
+  });
+}
+
+// Initialize language on load
+function initLanguage() {
+  var saved = localStorage.getItem('sc_language');
+  if (saved === 'zh' || saved === 'en') {
+    I18N.currentLang = saved;
+  } else {
+    // Try browser language
+    var browserLang = navigator.language || navigator.userLanguage;
+    if (browserLang.startsWith('zh')) {
+      I18N.currentLang = 'zh';
+    } else {
+      I18N.currentLang = 'en';
+    }
+  }
+  
+  // Update language toggle button if exists
+  var langToggle = document.getElementById('language-toggle');
+  if (langToggle) {
+    langToggle.textContent = (I18N.currentLang === 'zh' ? '语言：中文' : 'Language: English');
+  }
+}
+
+// Run init on DOM ready (add to existing initApp or similar)
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', initLanguage);
+}
