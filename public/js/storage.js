@@ -20,7 +20,10 @@ const Storage = {
     ACHIEVEMENTS: 'sc_achievements',            // v37 成就系统
     CLICKED_WORDS: 'sc_clicked_words',          // v43 点击单词记录
     READING_QUIZ_HISTORY: 'sc_reading_quiz_history',  // v44 阅读理解闯关答题记录
-    VOCAB_BOOK: 'sc_vocab_book'                     // v47 生词本
+    VOCAB_BOOK: 'sc_vocab_book',                     // v47 生词本
+    DAILY_GOAL: 'sc_daily_goal',                       // v50 每日学习目标
+    DAILY_PROGRESS: 'sc_daily_progress',               // v50 当日学习进度
+    STREAK_DATA: 'sc_streak_data'                      // v50 连续打卡数据                     // v47 生词本
   },
   init() {
     if (!this.get(this.KEYS.CHICKS)) {
@@ -39,6 +42,9 @@ const Storage = {
       this.set(this.KEYS.CLICKED_WORDS, {});
       this.set(this.KEYS.READING_QUIZ_HISTORY, []);
       this.set(this.KEYS.VOCAB_BOOK, []);
+      this.set(this.KEYS.DAILY_GOAL, { articles: 3, words: 10 });
+      this.set(this.KEYS.DAILY_PROGRESS, { date: null, articles: 0, words: 0, goalMet: false });
+      this.set(this.KEYS.STREAK_DATA, { currentStreak: 0, maxStreak: 0, history: [] });
     }
   },
   get(key) {
@@ -582,4 +588,92 @@ const Storage = {
 ':'') + lines.join('
 ');
   }
+
+  // ============== v50 每日学习目标与连续打卡 ==============
+  getDailyGoal() {
+    return this.get(this.KEYS.DAILY_GOAL) || { articles: 3, words: 10 };
+  },
+  setDailyGoal(articles, words) {
+    this.set(this.KEYS.DAILY_GOAL, { articles: articles || 3, words: words || 10 });
+  },
+  getTodayProgress() {
+    var today = new Date().toISOString().split('T')[0];
+    var progress = this.get(this.KEYS.DAILY_PROGRESS);
+    if (!progress || progress.date !== today) {
+      progress = { date: today, articles: 0, words: 0, goalMet: false };
+      this.set(this.KEYS.DAILY_PROGRESS, progress);
+    }
+    return progress;
+  },
+  recordArticleRead() {
+    var progress = this.getTodayProgress();
+    progress.articles++;
+    this.set(this.KEYS.DAILY_PROGRESS, progress);
+    this.checkAndUpdateStreak();
+    return progress;
+  },
+  recordWordLearned() {
+    var progress = this.getTodayProgress();
+    progress.words++;
+    this.set(this.KEYS.DAILY_PROGRESS, progress);
+    this.checkAndUpdateStreak();
+    return progress;
+  },
+  checkAndUpdateStreak() {
+    var today = new Date().toISOString().split('T')[0];
+    var progress = this.get(this.KEYS.DAILY_PROGRESS);
+    var goal = this.getDailyGoal();
+    var streak = this.get(this.KEYS.STREAK_DATA) || { currentStreak: 0, maxStreak: 0, history: [] };
+    
+    var alreadyMetToday = streak.history && streak.history.find(function(h) { return h.date === today; });
+    if (!alreadyMetToday && progress.articles >= goal.articles && progress.words >= goal.words) {
+      progress.goalMet = true;
+      this.set(this.KEYS.DAILY_PROGRESS, progress);
+      streak.currentStreak++;
+      if (streak.currentStreak > streak.maxStreak) {
+        streak.maxStreak = streak.currentStreak;
+      }
+      streak.history.unshift({ date: today, articles: progress.articles, words: progress.words });
+      if (streak.history.length > 30) streak.history.pop();
+      this.set(this.KEYS.STREAK_DATA, streak);
+    }
+  },
+  getStreakData() {
+    return this.get(this.KEYS.STREAK_DATA) || { currentStreak: 0, maxStreak: 0, history: [] };
+  },
+  getStreak() {
+    var streak = this.getStreakData();
+    var today = new Date().toISOString().split('T')[0];
+    var yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    var lastHistory = streak.history && streak.history[0];
+    if (lastHistory) {
+      if (lastHistory.date !== today && lastHistory.date !== yesterday) {
+        streak.currentStreak = 0;
+        this.set(this.KEYS.STREAK_DATA, streak);
+      }
+    }
+    return streak.currentStreak;
+  },
+  getMaxStreak() {
+    return this.getStreakData().maxStreak || 0;
+  },
+  getCheckinCalendar(days) {
+    var streak = this.getStreakData();
+    var history = streak.history || [];
+    if (days && days > 0) {
+      return history.slice(0, days);
+    }
+    return history;
+  },
+  checkMissedDays() {
+    var today = new Date().toISOString().split('T')[0];
+    var yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    var streak = this.getStreakData();
+    var lastHistory = streak.history && streak.history[0];
+    if (lastHistory && lastHistory.date !== today && lastHistory.date !== yesterday) {
+      streak.currentStreak = 0;
+      this.set(this.KEYS.STREAK_DATA, streak);
+    }
+  }
+
 })();
