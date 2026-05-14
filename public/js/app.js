@@ -679,6 +679,7 @@ function handleAddToVocabBook(word) {
   }
   var articleTitle = story ? story.title : '';
   var added = Storage.addToVocabBook(word, meaning, '', currentLevel, articleTitle);
+  if (added) Storage.recordWordLearned(); // v50 记录学习单词
   hideWordContextMenu();
   showToast(added ? '已加入生词本 📖' : '生词本已有该单词');
 }
@@ -1124,6 +1125,7 @@ function finishLevel() {
   if (passed) {
     Storage.setLevelProgress(currentLevel, { passed: true, score: score, stars: stars });
     Storage.addScore(score);
+    Storage.recordArticleRead(); // v50 记录阅读文章
   }
   // ===== 金币奖励 =====
   var coinsEarned = 0;
@@ -2414,7 +2416,101 @@ function showVocabBook(backTo) {
   showScreen('vocab-book');
 }
 function exitVocabBook() {
+// v50 每日学习目标与连续打卡
+function showDailyGoal(backTo) {
+  var goal = Storage.getDailyGoal();
+  var progress = Storage.getTodayProgress();
+  var streak = Storage.getStreakData();
+  var goalArticles = goal.articles || 3;
+  var goalWords = goal.words || 10;
+  var progressArticles = progress.articles || 0;
+  var progressWords = progress.words || 0;
+  var html = '<div class="daily-goal-page">' +
+    '<div class="screen-header"><button class="back-btn" onclick="navTo(\'' + (backTo || 'home') + '\')">←</button><h1>每日学习目标</h1></div>' +
+    '<div class="daily-goal-section"><h2>🎯 今日目标</h2>' +
+    '<div class="goal-setting"><div class="goal-item"><label>阅读文章数：</label>' +
+    '<input type="number" id="goal-articles" value="' + goalArticles + '" min="1" max="10"></div>' +
+    '<div class="goal-item"><label>学习单词数：</label>' +
+    '<input type="number" id="goal-words" value="' + goalWords + '" min="1" max="50"></div>' +
+    '<button class="save-goal-btn" onclick="saveDailyGoal()">保存目标</button></div></div>' +
+    '<div class="daily-progress-section"><h2>📊 今日进度</h2>' +
+    '<div class="progress-item"><div class="progress-label">阅读文章</div>' +
+    '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.min(100, (progressArticles/goalArticles)*100) + '%">' + progressArticles + '/' + goalArticles + '</div></div></div>' +
+    '<div class="progress-item"><div class="progress-label">学习单词</div>' +
+    '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.min(100, (progressWords/goalWords)*100) + '%">' + progressWords + '/' + goalWords + '</div></div></div>' +
+    '<div class="progress-status">' + (progress.goalMet ? '✅ 今日目标已完成！' : '💪 继续加油！') + '</div></div>' +
+    '<div class="streak-section"><h2>🔥 连续打卡</h2>' +
+    '<div class="streak-stats"><div class="streak-item">当前连续：' + (streak.currentStreak||0) + ' 天</div>' +
+    '<div class="streak-item">最长连续：' + (streak.maxStreak||0) + ' 天</div></div>' +
+    '<button class="streak-btn" onclick="showStreakPage()">查看打卡日历</button></div></div>';
+  document.getElementById('app').innerHTML = html;
+}
+function saveDailyGoal() {
+  var articles = parseInt(document.getElementById('goal-articles').value) || 3;
+  var words = parseInt(document.getElementById('goal-words').value) || 10;
+  Storage.setDailyGoal(articles, words);
+  showToast('目标已保存 📝');
+}
+function showStreakPage() {
+  var streak = Storage.getStreakData();
+  var history = Storage.getCheckinCalendar(30);
+  var today = new Date().toISOString().split('T')[0];
+  var html = '<div class="streak-page">' +
+    '<div class="screen-header"><button class="back-btn" onclick="showDailyGoal()">←</button><h1>打卡日历</h1></div>' +
+    '<div class="streak-summary"><div class="streak-stat">当前连续：' + (streak.currentStreak||0) + ' 天</div>' +
+    '<div class="streak-stat">最长连续：' + (streak.maxStreak||0) + ' 天</div></div>' +
+    '<div class="calendar"><div class="calendar-header">最近30天打卡记录</div><div class="calendar-grid">';
+  for (var i = 29; i >= 0; i--) {
+    var date = new Date(Date.now() - i * 86400000);
+    var dateStr = date.toISOString().split('T')[0];
+    var dayEntry = history.find(function(h) { return h.date === dateStr; });
+    var isToday = dateStr === today;
+    var goal = Storage.getDailyGoal();
+    var isGoalMet = dayEntry && dayEntry.articles >= (goal.articles||3);
+    html += '<div class="calendar-cell ' + (isToday?'today':'') + ' ' + (isGoalMet?'completed':'incomplete') + '">' +
+      '<div class="calendar-date">' + date.getDate() + '</div>' +
+      '<div class="calendar-status">' + (isGoalMet?'✓':(isToday?'🔥':'')) + '</div></div>';
+  }
+  html += '</div></div>' +
+    '<div class="back-section"><button class="back-btn" onclick="showDailyGoal()">返回</button></div></div>';
+  document.getElementById('app').innerHTML = html;
+}
+function renderHomeProgress() {
+  var goal = Storage.getDailyGoal();
+  var progress = Storage.getTodayProgress();
+  var streak = Storage.getStreakData();
+  var goalArticles = goal.articles || 3;
+  var goalWords = goal.words || 10;
+  var progressArticles = progress.articles || 0;
+  var progressWords = progress.words || 0;
+  var pctA = Math.min(100, (progressArticles/goalArticles)*100);
+  var pctW = Math.min(100, (progressWords/goalWords)*100);
+  var html = '<div class="home-progress" onclick="showDailyGoal()">' +
+    '<div class="progress-title">今日进度</div>' +
+    '<div class="progress-row"><span>阅读 ' + progressArticles + '/' + goalArticles + '</span>' +
+    '<div class="progress-bar-tiny"><div class="progress-fill-tiny" style="width:' + pctA + '%"></div></div></div>' +
+    '<div class="progress-row"><span>单词 ' + progressWords + '/' + goalWords + '</span>' +
+    '<div class="progress-bar-tiny"><div class="progress-fill-tiny" style="width:' + pctW + '%"></div></div></div>' +
+    '<div class="progress-streak">' + (progress.goalMet ? '✅ 已完成' : '🔥 ' + (streak.currentStreak||0) + '连击') + '</div></div>';
+  return html;
+}
   showScreen(_vocabBookBack);
+function updateHomeProgress() {
+  var container = document.getElementById('home-progress-container');
+  if (!container) return;
+  var goal = Storage.getDailyGoal();
+  var progress = Storage.getTodayProgress();
+  var streak = Storage.getStreakData();
+  var ga = goal.articles || 3;
+  var gw = goal.words || 10;
+  var pa = progress.articles || 0;
+  var pw = progress.words || 0;
+  container.innerHTML = '<div class="home-progress-widget" onclick="showDailyGoal()">' +
+    '<div class="hp-title">今日进度</div>' +
+    '<div class="hp-row"><span>阅读 ' + pa + '/' + ga + '</span><div class="hp-bar"><div class="hp-fill" style="width:' + Math.min(100, pa/ga*100) + '%"></div></div></div>' +
+    '<div class="hp-row"><span>单词 ' + pw + '/' + gw + '</span><div class="hp-bar"><div class="hp-fill" style="width:' + Math.min(100, pw/gw*100) + '%"></div></div></div>' +
+    '<div class="hp-streak">' + (progress.goalMet ? '✅ 今日目标完成' : '🔥 ' + (streak.currentStreak||0) + '连击') + '</div></div>';
+}
 }
 function renderVocabBook() {
   var book = Storage.getVocabBook();
@@ -2769,6 +2865,7 @@ document.addEventListener('DOMContentLoaded', function() {
   Storage.init();
   Sound.init();
   applySavedTheme();
+  Storage.checkMissedDays(); // v50 检查连续天数是否中断
   // Update theme toggle text
   var themeToggle = document.getElementById('theme-toggle');
   if (themeToggle) {
