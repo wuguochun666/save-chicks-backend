@@ -1095,5 +1095,48 @@ body.dark .ach-badge.unlocked .ach-name {
 <script src="js/storage.js"></script>
 <script src="js/stories.js"></script>
 <script src="js/app.js"></script>
+
+  <!-- v89 好友排行榜页面 -->
+  <div id="leaderboard-enhanced" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" onclick="goBack()">←</button>
+      <h2>🏆 排行榜</h2>
+    </div>
+    <div class="leaderboard-tabs">
+      <button class="lb-tab active" onclick="switchLeaderboardTab('national')">全国排行</button>
+      <button class="lb-tab" onclick="switchLeaderboardTab('friends')">好友排行</button>
+    </div>
+    <div class="leaderboard-period-tabs">
+      <button class="period-tab active" onclick="switchLeaderboardPeriod('total')">总榜</button>
+      <button class="period-tab" onclick="switchLeaderboardPeriod('month')">月榜</button>
+      <button class="period-tab" onclick="switchLeaderboardPeriod('week')">周榜</button>
+    </div>
+    <div class="leaderboard-podium" id="lb-podium"></div>
+    <div class="leaderboard-list" id="lb-list"></div>
+  </div>
+
+  <!-- v89 好友列表页面 -->
+  <div id="friends-page" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" onclick="goBack()">←</button>
+      <h2>👥 好友</h2>
+    </div>
+    <div class="friends-tabs">
+      <button class="friend-tab active" onclick="switchFriendTab('list')">好友列表</button>
+      <button class="friend-tab" onclick="switchFriendTab('requests')">申请(<span id="friend-request-count">0</span>)</button>
+      <button class="friend-tab" onclick="switchFriendTab('search')">添加好友</button>
+    </div>
+    <div id="friends-content"></div>
+  </div>
+
+  <!-- v89 对战邀请页面 -->
+  <div id="battle-invite" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" onclick="goBack()">←</button>
+      <h2>⚔️ 对战</h2>
+    </div>
+    <div id="battle-content"></div>
+  </div>
+
 </body>
 </html>
