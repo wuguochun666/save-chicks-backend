@@ -699,6 +699,64 @@ body.dark .recommend-title { color:#eee; }
 body.dark .settings-slider input[type="range"] {
   accent-color: #81C784;
 }
+
+/* v86: Achievement badge wall enhancements */
+#achievements-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.ach-badge {
+  background: var(--card-bg, #fff);
+  border-radius: 16px;
+  padding: 16px 12px;
+  text-align: center;
+  transition: all 0.3s;
+  border: 2px solid var(--border, #eee);
+}
+.ach-badge.unlocked {
+  background: linear-gradient(135deg, #fff9e6, #fff3cc);
+  border-color: #FFD700;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
+}
+body.dark .ach-badge.unlocked {
+  background: linear-gradient(135deg, #3d3520, #4a4020);
+  border-color: #FFD700;
+}
+.ach-badge.locked {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+.ach-badge .ach-icon {
+  font-size: 2.2em;
+  margin-bottom: 6px;
+}
+.ach-badge .ach-name {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: var(--text-color, #333);
+  margin-bottom: 4px;
+}
+.ach-badge .ach-desc {
+  font-size: 0.72em;
+  color: var(--text-muted, #888);
+}
+.ach-badge.unlocked .ach-name {
+  color: #b8860b;
+}
+body.dark .ach-badge.unlocked .ach-name {
+  color: #FFD700;
+}
+.ach-section-title {
+  font-size: 0.9em;
+  color: var(--text-muted, #888);
+  margin: 12px 0 8px 16px;
+  border-bottom: 1px solid var(--border, #eee);
+  padding-bottom: 4px;
+}
 </style>
 </head>
 <body>
