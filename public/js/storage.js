@@ -95,7 +95,7 @@ const Storage = {
     }
   },
   getSettings() {
-    return this.get(this.KEYS.SETTINGS) || { sound: true };
+    return this.get(this.KEYS.SETTINGS) || { sound: true, music: false, musicVolume: 50, soundVolume: 70 };
   },
   updateSettings(data) {
     this.set(this.KEYS.SETTINGS, { ...this.getSettings(), ...data });
