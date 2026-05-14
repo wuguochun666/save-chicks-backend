@@ -654,6 +654,37 @@ body.dark .level-up-text .main-text { background:linear-gradient(135deg,#FFD700,
 body.dark .level-up-text .sub-text { color:#aaa; }
 body.dark .reading-progress-bar.completed { box-shadow:0 0 16px rgba(56,239,125,0.8); }
 
+
+/* ===== v76 task-009: Difficulty selector & recommendation ===== */
+.difficulty-tabs { display:flex; justify-content:center; gap:8px; margin:12px 0; }
+.diff-tab { padding:8px 20px; border-radius:20px; border:2px solid #667eea; background:white; color:#667eea; font-size:14px; cursor:pointer; transition:all 0.3s; }
+.diff-tab.active { background:linear-gradient(135deg,#667eea,#764ba2); color:white; }
+.diff-tab:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(102,126,234,0.3); }
+.diff-tab span { font-size:10px; margin-left:4px; opacity:0.8; }
+.recommend-page { padding:16px; }
+.recommend-title { font-size:20px; font-weight:bold; text-align:center; margin-bottom:8px; color:#333; }
+.player-level-card { background:linear-gradient(135deg,#667eea,#764ba2); color:white; border-radius:16px; padding:16px; text-align:center; margin-bottom:16px; }
+.player-level-card .level-name { font-size:18px; font-weight:bold; margin:4px 0; }
+.player-level-card .level-desc { font-size:12px; opacity:0.9; }
+.article-list { list-style:none; padding:0; margin:0; }
+.article-card { background:white; border-radius:12px; padding:14px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,0.08); display:flex; align-items:center; gap:12px; cursor:pointer; transition:all 0.2s; }
+.article-card:hover { transform:translateX(4px); box-shadow:0 4px 16px rgba(0,0,0,0.12); }
+.article-card .art-icon { font-size:28px; }
+.article-card .art-info { flex:1; }
+.article-card .art-title { font-size:15px; font-weight:600; color:#333; margin-bottom:4px; }
+.article-card .art-meta { font-size:12px; color:#999; display:flex; gap:12px; }
+.article-card .art-badge { padding:2px 8px; border-radius:10px; font-size:11px; }
+.badge-easy { background:#e8f5e9; color:#2e7d32; }
+.badge-medium { background:#fff3e0; color:#e65100; }
+.badge-hard { background:#fce4ec; color:#c62828; }
+.article-count { text-align:center; font-size:13px; color:#888; margin-top:12px; }
+body.dark .diff-tab { border-color:#764ba2; background:#1a1a2e; color:#a18cd1; }
+body.dark .diff-tab.active { background:linear-gradient(135deg,#667eea,#764ba2); color:white; }
+body.dark .article-card { background:#1e1e3f; box-shadow:0 2px 8px rgba(0,0,0,0.3); }
+body.dark .article-card:hover { box-shadow:0 4px 16px rgba(102,126,234,0.2); }
+body.dark .article-card .art-title { color:#eee; }
+body.dark .recommend-title { color:#eee; }
+
 </style>
 </head>
 <body>
@@ -921,6 +952,30 @@ body.dark .reading-progress-bar.completed { box-shadow:0 0 16px rgba(56,239,125,
       <button class="review-quit-btn" onclick="exitVocabReview()">完成</button>
     </header>
     <div id="vocab-review-content" class="review-content"></div>
+  </div>
+
+  
+  <!-- 智能推荐页 -->
+  <div id="recommend-page" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" onclick="showScreen('home')">← 返回</button>
+      <h2>📖 智能推荐</h2>
+      <div style="width:60px"></div>
+    </div>
+    <div class="difficulty-tabs">
+      <button class="diff-tab active" data-diff="easy" onclick="switchDifficulty('easy')">入门<span>10篇</span></button>
+      <button class="diff-tab" data-diff="medium" onclick="switchDifficulty('medium')">进阶<span>10篇</span></button>
+      <button class="diff-tab" data-diff="hard" onclick="switchDifficulty('hard')">挑战<span>10篇</span></button>
+    </div>
+    <div class="recommend-page">
+      <div class="player-level-card" id="player-level-card">
+        <div>🎯 你的当前水平</div>
+        <div class="level-name" id="player-level-name">分析中...</div>
+        <div class="level-desc" id="player-level-desc"></div>
+      </div>
+      <ul class="article-list" id="article-list"></ul>
+      <div class="article-count" id="article-count"></div>
+    </div>
   </div>
 
   <div id="vocab-book" class="screen">
