@@ -540,7 +540,50 @@
     [data-theme="dark"] .nav-btn.active { color: #FFD700 !important; }
     [data-theme="dark"] #settings { background: #1a1a2e !important; }
     [data-theme="dark"] .login-box { background: #16213e !important; color: #e0e0e0 !important; }
-  </style>
+  
+/* v50 每日学习目标与连续打卡 */
+.daily-goal-page, .streak-page { padding: 16px; }
+.daily-goal-section, .daily-progress-section, .streak-section { background: #fff; border-radius: 12px; padding: 16px; margin: 12px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.goal-setting { margin-top: 12px; }
+.goal-item { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+.goal-item input { padding: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 1em; }
+.save-goal-btn, .streak-btn { background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; border: none; border-radius: 8px; padding: 10px 20px; margin-top: 12px; font-size: 1em; cursor: pointer; }
+.progress-bar { background: #f0f0f0; border-radius: 12px; height: 28px; overflow: hidden; margin: 8px 0; }
+.progress-fill { background: linear-gradient(135deg,#11998e,#38ef7d); color: #fff; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.85em; font-weight: bold; border-radius: 12px; transition: width 0.3s; }
+.progress-status { text-align: center; margin: 12px 0; font-size: 1.1em; }
+.streak-stats { display: flex; gap: 16px; margin: 12px 0; }
+.streak-item { flex: 1; background: #fff3e0; border-radius: 12px; padding: 12px; text-align: center; }
+.streak-stat { flex: 1; background: linear-gradient(135deg,#f093fb,#f5576c); color: #fff; border-radius: 12px; padding: 12px; text-align: center; margin: 8px 4px; }
+.streak-summary { display: flex; margin: 12px 0; }
+.calendar { background: #fff; border-radius: 12px; padding: 16px; margin: 12px 0; }
+.calendar-header { text-align: center; font-weight: bold; margin-bottom: 12px; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.calendar-cell { aspect-ratio: 1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.8em; }
+.calendar-cell.completed { background: #c8e6c9; }
+.calendar-cell.incomplete { background: #f5f5f5; }
+.calendar-cell.today { border: 2px solid #667eea; }
+.calendar-date { font-weight: bold; }
+.calendar-status { font-size: 1.2em; }
+.back-section { text-align: center; margin: 16px 0; }
+.back-section button, .back-btn { background: #667eea; color: #fff; border: none; border-radius: 8px; padding: 10px 24px; cursor: pointer; }
+/* home progress widget */
+.home-progress { background: linear-gradient(135deg,#f5f7fa,#c3cfe2); border-radius: 12px; padding: 12px; margin: 12px 16px; cursor: pointer; }
+.progress-title { font-weight: bold; margin-bottom: 8px; }
+.progress-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.9em; }
+.progress-bar-tiny { flex: 1; height: 6px; background: rgba(255,255,255,0.5); border-radius: 3px; }
+.progress-fill-tiny { height: 100%; background: #667eea; border-radius: 3px; }
+.progress-streak { text-align: center; margin-top: 8px; font-size: 0.9em; }
+
+
+/* v50 home progress widget */
+.home-progress-widget { background: linear-gradient(135deg,#f5f7fa,#c3cfe2); border-radius: 12px; padding: 12px; margin: 12px 0; cursor: pointer; }
+.hp-title { font-weight: bold; margin-bottom: 8px; font-size: 0.95em; }
+.hp-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.85em; }
+.hp-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.5); border-radius: 3px; }
+.hp-fill { height: 100%; background: #667eea; border-radius: 3px; transition: width 0.3s; }
+.hp-streak { text-align: center; margin-top: 8px; font-size: 0.85em; color: #555; }
+
+</style>
 </head>
 <body>
 <div id="app">
@@ -597,11 +640,13 @@
     <button class="home-btn rank" onclick="navTo('leaderboard')">排行榜</button>
     <button class="home-btn secondary" onclick="navTo('garden')">小鸡花园</button>
     <button class="home-btn secondary" onclick="navTo('vocab')">词汇本</button>
+    <button class="home-btn secondary" onclick="showDailyGoal()" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;">🎯 每日目标</button>
     <button class="home-btn secondary" onclick="navTo('wrong-answers')">错题本</button>
     <button class="home-btn" id="home-daily-btn" onclick="claimDailyReward()" style="background:linear-gradient(135deg,#f6d365,#fda085);color:#4a3728;">每日登录奖励</button>
     <button class="home-btn secondary" onclick="renderLevelMap(); showScreen('level-map')">关卡地图</button>
     <button class="home-btn" id="nav-login-btn" onclick="showLogin()">登录 / 注册</button>
     <button class="home-btn danger" id="nav-logout-btn" style="display:none;" onclick="logoutUser()">退出登录</button>
+    <div id="home-progress-container"></div>
   </div>
 
   <!-- 关卡地图 -->
