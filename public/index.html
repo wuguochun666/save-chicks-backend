@@ -965,6 +965,7 @@ body.dark .ach-badge.unlocked .ach-name {
         <span id="language-toggle">语言：中文</span>
         <span>切换 →</span>
       </div>
+      <div class="settings-item" onclick="showParentalPanel()"><span id="parental-monitor-btn">家长监控</span><span>&#8594;</span></div>
       <div class="settings-item" onclick="toggleTheme()">
         <span id="theme-toggle">主题：浅色</span>
         <span>切换 →</span>
@@ -1169,6 +1170,76 @@ body.dark .ach-badge.unlocked .ach-name {
       <h2>⚔️ 对战</h2>
     </div>
     <div id="battle-content"></div>
+  </div>
+
+
+  <!-- 家长监控面板 -->
+  <div id="parental-panel" class="screen" style="display:none;">
+    <header class="map-header">
+      <button class="btn-back" onclick="exitParentalPanel()"> 返回</button>
+      <h2>家长监控</h2>
+      <span style="width:50px"></span>
+    </header>
+    <div id="parental-content" style="padding:16px;max-width:600px;margin:0 auto;"></div>
+  </div>
+
+  <!-- 家长密码设置 -->
+  <div id="parental-setup" class="screen" style="display:none;">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('settings')"> 返回</button>
+      <h2>设置家长密码</h2>
+      <span style="width:50px"></span>
+    </header>
+    <div style="padding:16px;max-width:600px;margin:0 auto;text-align:center;">
+      <p style="color:#666;margin-bottom:20px;">请设置4位数字密码，用于进入家长监控面板</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;">
+        <input type="password" id="parental-pwd-1" maxlength="1" style="width:50px;height:50px;font-size:24px;text-align:center;border:2px solid #4CAF50;border-radius:8px;">
+        <input type="password" id="parental-pwd-2" maxlength="1" style="width:50px;height:50px;font-size:24px;text-align:center;border:2px solid #4CAF50;border-radius:8px;">
+        <input type="password" id="parental-pwd-3" maxlength="1" style="width:50px;height:50px;font-size:24px;text-align:center;border:2px solid #4CAF50;border-radius:8px;">
+        <input type="password" id="parental-pwd-4" maxlength="1" style="width:50px;height:50px;font-size:24px;text-align:center;border:2px solid #4CAF50;border-radius:8px;">
+      </div>
+      <p id="parental-pwd-hint" style="color:#888;font-size:14px;"></p>
+      <button onclick="confirmParentalPassword()" style="background:#4CAF50;color:#fff;padding:12px 32px;border:none;border-radius:8px;font-size:16px;cursor:pointer;margin-top:16px;">确认设置</button>
+    </div>
+  </div>
+
+  <!-- 家长密码验证 -->
+  <div id="parental-verify" class="screen" style="display:none;">
+    <header class="map-header">
+      <button class="btn-back" onclick="showScreen('home')"> 返回</button>
+      <h2>验证家长密码</h2>
+      <span style="width:50px"></span>
+    </header>
+    <div style="padding:16px;max-width:600px;margin:0 auto;text-align:center;">
+      <p style="color:#666;margin-bottom:20px;">请输入4位家长密码</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;">
+        <input type="password" id="parental-verify-1" maxlength="1" style="width:50px;height:50px;font-size:24px;text-align:center;border:2px solid #2196F3;border-radius:8px;">
+        <input type="password" id="parental-verify-2" maxlength="1" style="width:50px;height:50px;font-size:24px;text-align:center;border:2px solid #2196F3;border-radius:8px;">
+        <input type="password" id="parental-verify-3" maxlength="1" style="width:50px;height:50px;font-size:24px;text-align:center;border:2px solid #2196F3;border-radius:8px;">
+        <input type="password" id="parental-verify-4" maxlength="1" style="width:50px;height:50px;font-size:24px;text-align:center;border:2px solid #2196F3;border-radius:8px;">
+      </div>
+      <p id="parental-verify-hint" style="color:#f44336;font-size:14px;"></p>
+    </div>
+  </div>
+
+  <!-- 使用时间已到锁定 -->
+  <div id="parental-lockout" class="screen" style="display:none;background:rgba(0,0,0,0.92);position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;">
+    <div style="text-align:center;padding-top:20%;color:#fff;">
+      <h1 style="font-size:32px;">&#9200; 今日学习时间已到</h1>
+      <p style="font-size:18px;margin:20px 0;">今天的游戏时间已用完</p>
+      <p style="font-size:14px;color:#aaa;">明天再来继续学习吧！</p>
+    </div>
+  </div>
+
+  <!-- 休息提醒 -->
+  <div id="parental-break-reminder" class="screen" style="display:none;background:rgba(0,0,0,0.85);position:fixed;top:0;left:0;width:100%;height:100%;z-index:9998;">
+    <div style="text-align:center;padding-top:18%;color:#fff;">
+      <h1 style="font-size:36px;">&#9749; 休息一下！</h1>
+      <p style="font-size:18px;margin:20px 0;">你已经连续学习了25分钟</p>
+      <p style="font-size:14px;color:#aaa;margin-bottom:30px;">站起来活动一下，保护眼睛~</p>
+      <button onclick="dismissBreakReminder()" style="background:#4CAF50;color:#fff;padding:14px 40px;border:none;border-radius:8px;font-size:16px;cursor:pointer;margin:8px;">好的，我休息</button><br>
+      <button onclick="continueAnyway()" style="background:transparent;color:#aaa;padding:12px;border:none;font-size:14px;cursor:pointer;margin-top:8px;text-decoration:underline;">继续学习（已记录）</button>
+    </div>
   </div>
 
 </body>
