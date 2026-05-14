@@ -3381,3 +3381,211 @@ function nextTrack() {
   var name = Music.nextTrack();
   document.getElementById('track-name').textContent = '曲目：' + name;
 }
+
+// ============== v89 排行榜增强 ==============
+var lbCurrentTab = 'national';
+var lbCurrentPeriod = 'total';
+
+function showLeaderboardEnhanced() {
+  showScreen('leaderboard-enhanced');
+  renderLeaderboardEnhanced();
+}
+
+function switchLeaderboardTab(tab) {
+  lbCurrentTab = tab;
+  document.querySelectorAll('.lb-tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  renderLeaderboardEnhanced();
+}
+
+function switchLeaderboardPeriod(period) {
+  lbCurrentPeriod = period;
+  document.querySelectorAll('.period-tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  renderLeaderboardEnhanced();
+}
+
+function renderLeaderboardEnhanced() {
+  var data = lbCurrentTab === 'national' ? Storage.getNationalLeaderboard() : Storage.getFriendsLeaderboard();
+  
+  // Podium (top 3)
+  var podiumHtml = '';
+  var top3 = data.slice(0, 3);
+  if (top3.length >= 3) {
+    podiumHtml = '<div class="podium-item silver"><div class="podium-rank">🥈</div><div class="podium-name">' + top3[1].name + '</div><div class="podium-stars">⭐' + top3[1].stars + '</div></div>';
+    podiumHtml += '<div class="podium-item gold"><div class="podium-rank">🥇</div><div class="podium-name">' + top3[0].name + '</div><div class="podium-stars">⭐' + top3[0].stars + '</div></div>';
+    podiumHtml += '<div class="podium-item bronze"><div class="podium-rank">🥉</div><div class="podium-name">' + top3[2].name + '</div><div class="podium-stars">⭐' + top3[2].stars + '</div></div>';
+  }
+  document.getElementById('lb-podium').innerHTML = podiumHtml;
+  
+  // List (rest)
+  var listHtml = '';
+  data.slice(3).forEach(function(user, idx) {
+    listHtml += '<div class="lb-item' + (user.isMe ? ' me' : '') + '">';
+    listHtml += '<div class="lb-rank">#' + (idx + 4) + '</div>';
+    listHtml += '<div class="lb-name">' + user.name + (user.isMe ? ' (我)' : '') + '</div>';
+    listHtml += '<div class="lb-stars">⭐' + user.stars + '</div>';
+    listHtml += '</div>';
+  });
+  document.getElementById('lb-list').innerHTML = listHtml;
+}
+
+// ============== v89 好友系统 ==============
+var friendCurrentTab = 'list';
+
+function showFriendsPage() {
+  showScreen('friends-page');
+  renderFriendsContent();
+}
+
+function switchFriendTab(tab) {
+  friendCurrentTab = tab;
+  document.querySelectorAll('.friend-tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  renderFriendsContent();
+}
+
+function renderFriendsContent() {
+  var html = '';
+  if (friendCurrentTab === 'list') {
+    var friends = Storage.getFriends();
+    if (friends.length === 0) {
+      html = '<div style="text-align:center;padding:40px;color:var(--text-muted,#888);">暂无好友，去添加吧！</div>';
+    } else {
+      friends.forEach(function(f) {
+        html += '<div class="friend-card">';
+        html += '<div class="friend-avatar">' + f.name.charAt(0) + '</div>';
+        html += '<div class="friend-info"><div class="friend-name">' + f.name + '</div><div class="friend-stars">⭐' + (f.stars || 0) + '</div></div>';
+        html += '<div class="friend-actions">';
+        html += '<button class="friend-btn battle" onclick="startBattleWith(\'' + f.id + '\',\'' + f.name + '\')">对战</button>';
+        html += '<button class="friend-btn remove" onclick="removeFriend(\'' + f.id + '\')">删除</button>';
+        html += '</div></div>';
+      });
+    }
+  } else if (friendCurrentTab === 'requests') {
+    var requests = Storage.getFriendRequests();
+    document.getElementById('friend-request-count').textContent = requests.length;
+    if (requests.length === 0) {
+      html = '<div style="text-align:center;padding:40px;color:var(--text-muted,#888);">暂无好友申请</div>';
+    } else {
+      requests.forEach(function(r) {
+        html += '<div class="friend-card">';
+        html += '<div class="friend-avatar">' + r.fromName.charAt(0) + '</div>';
+        html += '<div class="friend-info"><div class="friend-name">' + r.fromName + '</div><div class="friend-stars">⭐' + (r.fromStars || 0) + '</div></div>';
+        html += '<div class="friend-actions">';
+        html += '<button class="friend-btn battle" onclick="acceptFriend(\'' + r.fromId + '\',\'' + r.fromName + '\',' + (r.fromStars || 0) + ')">接受</button>';
+        html += '<button class="friend-btn remove" onclick="rejectFriend(\'' + r.fromId + '\')">拒绝</button>';
+        html += '</div></div>';
+      });
+    }
+  } else if (friendCurrentTab === 'search') {
+    html = '<input type="text" class="search-input" placeholder="搜索用户名或ID..." oninput="searchFriend(this.value)">';
+    html += '<div class="search-results" id="search-results"></div>';
+    setTimeout(function() { searchFriend(''); }, 100);
+  }
+  document.getElementById('friends-content').innerHTML = html;
+  if (friendCurrentTab !== 'search') {
+    var requests = Storage.getFriendRequests();
+    var countEl = document.getElementById('friend-request-count');
+    if (countEl) countEl.textContent = requests.length;
+  }
+}
+
+function searchFriend(keyword) {
+  var users = Storage.searchUsers(keyword);
+  var friends = Storage.getFriends();
+  var friendIds = friends.map(function(f) { return f.id; });
+  var html = '';
+  users.forEach(function(u) {
+    if (u.id === 'me') return;
+    var isFriend = friendIds.indexOf(u.id) >= 0;
+    html += '<div class="friend-card">';
+    html += '<div class="friend-avatar">' + u.name.charAt(0) + '</div>';
+    html += '<div class="friend-info"><div class="friend-name">' + u.name + '</div><div class="friend-stars">⭐' + u.stars + '</div></div>';
+    if (!isFriend) {
+      html += '<button class="friend-btn battle" onclick="sendFriendRequest(\'' + u.id + '\',\'' + u.name + '\',' + u.stars + ')">添加</button>';
+    } else {
+      html += '<span style="color:var(--text-muted,#888);font-size:0.85em;">已好友</span>';
+    }
+    html += '</div>';
+  });
+  var el = document.getElementById('search-results');
+  if (el) el.innerHTML = html;
+}
+
+function sendFriendRequest(id, name, stars) {
+  Storage.addFriend({ id: id, name: name, stars: stars });
+  showToast('已添加 ' + name + ' 为好友');
+  searchFriend(document.querySelector('.search-input')?.value || '');
+}
+
+function acceptFriend(id, name, stars) {
+  Storage.acceptFriendRequest(id, name, stars);
+  showToast('已接受 ' + name + ' 的好友申请');
+  renderFriendsContent();
+}
+
+function rejectFriend(id) {
+  Storage.rejectFriendRequest(id);
+  showToast('已拒绝好友申请');
+  renderFriendsContent();
+}
+
+function removeFriend(id) {
+  Storage.removeFriend(id);
+  showToast('已删除好友');
+  renderFriendsContent();
+}
+
+// ============== v89 对战系统 ==============
+var battleState = {
+  opponent: null,
+  level: null,
+  score: 0,
+  opponentScore: 0,
+  startTime: null
+};
+
+function startBattleWith(friendId, friendName) {
+  battleState.opponent = { id: friendId, name: friendName };
+  battleState.level = Math.floor(Math.random() * 10); // Random level 0-9
+  battleState.score = 0;
+  battleState.opponentScore = Math.floor(Math.random() * 5) + 3; // Simulated opponent score
+  battleState.startTime = Date.now();
+  
+  showScreen('battle-invite');
+  var html = '<div style="padding:20px;text-align:center;">';
+  html += '<h3>⚔️ 对战 ' + friendName + '</h3>';
+  html += '<p>关卡：第 ' + (battleState.level + 1) + ' 关</p>';
+  html += '<button class="nav-btn" onclick="startBattleLevel()" style="margin-top:20px;background:linear-gradient(135deg,#ff6b6b,#ff8e53);">开始对战</button>';
+  html += '</div>';
+  document.getElementById('battle-content').innerHTML = html;
+}
+
+function startBattleLevel() {
+  currentLevel = battleState.level;
+  startLevel();
+}
+
+function finishBattle(correctCount, timeUsed) {
+  var myScore = correctCount * 10 + Math.max(0, 100 - Math.floor(timeUsed / 1000));
+  var result = myScore > battleState.opponentScore ? 'win' : (myScore < battleState.opponentScore ? 'lose' : 'draw');
+  
+  var battle = {
+    opponentId: battleState.opponent.id,
+    opponentName: battleState.opponent.name,
+    myScore: myScore,
+    opponentScore: battleState.opponentScore,
+    result: result,
+    playedAt: Date.now()
+  };
+  Storage.saveBattle(battle);
+  
+  var html = '<div style="padding:20px;text-align:center;">';
+  html += '<h3>' + (result === 'win' ? '🎉 胜利！' : (result === 'lose' ? '😢 失败' : '🤝 平局')) + '</h3>';
+  html += '<p>你的得分：' + myScore + '</p>';
+  html += '<p>' + battleState.opponent.name + '：' + battleState.opponentScore + '</p>';
+  html += '<button class="nav-btn" onclick="goHome()" style="margin-top:20px;">返回首页</button>';
+  html += '</div>';
+  document.getElementById('battle-content').innerHTML = html;
+}
