@@ -712,6 +712,15 @@ const Storage = {
       return history.slice(0, days);
     }
     return history;
+
+    PARENTAL_PASSWORD: 'sc_parental_password',
+    PARENTAL_DAILY_LIMIT: 'sc_parental_daily_limit',
+    PARENTAL_USAGE_LOG: 'sc_parental_usage_log',
+    PARENTAL_BREAK_COUNT: 'sc_parental_break_count',
+    PARENTAL_BLOCKED_LEVELS: 'sc_parental_blocked_levels',
+    PARENTAL_SESSION_START: 'sc_parental_session_start',
+    PARENTAL_TOTAL_TODAY: 'sc_parental_total_today',
+    PARENTAL_LAST_DATE: 'sc_parental_last_date',
   },
   checkMissedDays() {
     var today = new Date().toISOString().split('T')[0];
@@ -862,3 +871,70 @@ const Storage = {
   };
 })();
 )();
+
+  setParentalPassword: function(pwd) {
+    localStorage.setItem(Storage.KEYS.PARENTAL_PASSWORD, pwd);
+  },
+  getParentalPassword: function() {
+    return localStorage.getItem(Storage.KEYS.PARENTAL_PASSWORD) || '';
+  },
+  hasParentalPassword: function() {
+    return !!localStorage.getItem(Storage.KEYS.PARENTAL_PASSWORD);
+  },
+  setParentalDailyLimit: function(minutes) {
+    localStorage.setItem(Storage.KEYS.PARENTAL_DAILY_LIMIT, minutes);
+  },
+  getParentalDailyLimit: function() {
+    return parseInt(localStorage.getItem(Storage.KEYS.PARENTAL_DAILY_LIMIT)) || 60;
+  },
+  getParentalUsageLog: function() {
+    var log = localStorage.getItem(Storage.KEYS.PARENTAL_USAGE_LOG);
+    return log ? JSON.parse(log) : [];
+  },
+  addUsageEntry: function(date, minutes) {
+    var log = Storage.getParentalUsageLog();
+    var entry = log.find(function(e) { return e.date === date; });
+    if (entry) { entry.minutes += minutes; }
+    else { log.push({ date: date, minutes: minutes }); }
+    if (log.length > 30) log = log.slice(-30);
+    localStorage.setItem(Storage.KEYS.PARENTAL_USAGE_LOG, JSON.stringify(log));
+  },
+  getParentalBreakCount: function() {
+    return parseInt(localStorage.getItem(Storage.KEYS.PARENTAL_BREAK_COUNT)) || 0;
+  },
+  incrementBreakCount: function() {
+    var count = Storage.getParentalBreakCount() + 1;
+    localStorage.setItem(Storage.KEYS.PARENTAL_BREAK_COUNT, count);
+    return count;
+  },
+  resetBreakCount: function() {
+    localStorage.setItem(Storage.KEYS.PARENTAL_BREAK_COUNT, '0');
+  },
+  getParentalBlockedLevels: function() {
+    var blocked = localStorage.getItem(Storage.KEYS.PARENTAL_BLOCKED_LEVELS);
+    return blocked ? JSON.parse(blocked) : [];
+  },
+  setParentalBlockedLevels: function(levels) {
+    localStorage.setItem(Storage.KEYS.PARENTAL_BLOCKED_LEVELS, JSON.stringify(levels));
+  },
+  isLevelBlocked: function(levelId) {
+    return Storage.getParentalBlockedLevels().indexOf(levelId) !== -1;
+  },
+  getTodayUsageMinutes: function() {
+    var today = new Date().toISOString().slice(0, 10);
+    var lastDate = localStorage.getItem(Storage.KEYS.PARENTAL_LAST_DATE) || '';
+    if (lastDate !== today) {
+      localStorage.setItem(Storage.KEYS.PARENTAL_TOTAL_TODAY, '0');
+      localStorage.setItem(Storage.KEYS.PARENTAL_LAST_DATE, today);
+      return 0;
+    }
+    return parseInt(localStorage.getItem(Storage.KEYS.PARENTAL_TOTAL_TODAY)) || 0;
+  },
+  addTodayUsageMinutes: function(mins) {
+    var today = new Date().toISOString().slice(0, 10);
+    localStorage.setItem(Storage.KEYS.PARENTAL_LAST_DATE, today);
+    var current = Storage.getTodayUsageMinutes();
+    var newTotal = current + mins;
+    localStorage.setItem(Storage.KEYS.PARENTAL_TOTAL_TODAY, newTotal);
+    return newTotal;
+  },
