@@ -757,7 +757,35 @@ body.dark .ach-badge.unlocked .ach-name {
   border-bottom: 1px solid var(--border, #eee);
   padding-bottom: 4px;
 }
-</style>
+
+    /* PDF Report */
+    .pdf-btn { background: linear-gradient(135deg, #e74c3c, #c0392b) !important; color: #fff !important; }
+    .pdf-btn:active { opacity: 0.8; }
+    .pdf-report-preview { background: #fff; border-radius: 12px; padding: 20px; margin: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+    .pdf-report-preview h3 { color: #4a3728; margin-bottom: 12px; font-size: 1.1em; }
+    .pdf-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+    .pdf-stat-item { background: #f5f0e8; border-radius: 8px; padding: 10px; text-align: center; }
+    .pdf-stat-item .label { font-size: 0.75em; color: #888; }
+    .pdf-stat-item .value { font-size: 1.3em; font-weight: bold; color: #4a3728; }
+    .pdf-ach-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0e8d8; font-size: 0.85em; }
+    .pdf-ach-item .ach-icon { font-size: 1.2em; }
+    .pdf-ach-item .ach-name { font-weight: bold; color: #4a3728; }
+    .pdf-ach-item .ach-time { margin-left: auto; color: #aaa; font-size: 0.8em; }
+    .pdf-level-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.8em; border-bottom: 1px solid #f5f0e8; }
+    .pdf-level-row .level-name { flex: 1; color: #4a3728; }
+    .pdf-export-btn { display: block; width: 80%; margin: 20px auto; padding: 14px; background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; border: none; border-radius: 12px; font-size: 1.1em; font-weight: bold; cursor: pointer; }
+    .pdf-export-btn:active { opacity: 0.85; }
+    .pdf-loading { text-align: center; padding: 40px; color: #888; }
+    .pdf-loading .spinner { display: inline-block; width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #e74c3c; border-radius: 50%; animation: pdf-spin 1s linear infinite; margin-bottom: 10px; }
+    @keyframes pdf-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    body.dark .pdf-stat-item { background: #2a2a3e; }
+    body.dark .pdf-report-preview { background: #1a1a2e; color: #e0e0e0; }
+    body.dark .pdf-stat-item .value, body.dark .pdf-ach-item .ach-name, body.dark .pdf-level-row .level-name { color: #e0e0e0; }
+    body.dark .pdf-ach-item { border-bottom-color: #333; }
+    body.dark .pdf-level-row { border-bottom-color: #333; }
+
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -820,6 +848,7 @@ body.dark .ach-badge.unlocked .ach-name {
     <button class="home-btn secondary" onclick="renderLevelMap(); showScreen('level-map')">关卡地图</button>
     <button class="home-btn" id="nav-login-btn" onclick="showLogin()">登录 / 注册</button>
     <button class="home-btn danger" id="nav-logout-btn" style="display:none;" onclick="logoutUser()">退出登录</button>
+        <button class="home-btn pdf-btn" onclick="showPdfReport()">📄 学习报告</button>
     <div id="home-progress-container"></div>
   </div>
 
