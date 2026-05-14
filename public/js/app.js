@@ -173,7 +173,117 @@ var Sound = {
   stopBgMusicIntro: function() {
     if (this._introBgTimer) { clearTimeout(this._introBgTimer); this._introBgTimer = null; }
   }
+}
+// v81: Background Music System
+var Music = {
+  enabled: false,
+  volume: 50,
+  _audio: null,
+  _tracks: [
+    { name: 'Piano Dreams', freqs: [262, 330, 392, 523, 392, 330, 262, 294, 349, 440, 349, 294] },
+    { name: 'Ocean Waves', freqs: [196, 220, 262, 294, 262, 220, 196, 175, 196, 220, 262, 220] },
+    { name: 'Forest Calm', freqs: [330, 392, 440, 523, 440, 392, 330, 294, 330, 392, 440, 392] },
+    { name: 'Morning Light', freqs: [392, 440, 494, 523, 494, 440, 392, 349, 392, 440, 494, 440] },
+    { name: 'Study Focus', freqs: [262, 294, 330, 349, 392, 440, 494, 523, 494, 440, 392, 349] }
+  ],
+  _currentTrack: 0,
+  _isPlaying: false,
+  _ctx: null,
+  _gainNode: null,
+  _loopInterval: null,
+  
+  init: function() {
+    var settings = Storage.getSettings();
+    this.enabled = settings.music || false;
+    this.volume = settings.musicVolume || 50;
+    this._currentTrack = 0;
+  },
+  
+  _getCtx: function() {
+    if (!this._ctx) {
+      try { this._ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; }
+    }
+    if (this._ctx && this._ctx.state === 'suspended') this._ctx.resume();
+    return this._ctx;
+  },
+  
+  play: function() {
+    if (!this.enabled) return;
+    var ctx = this._getCtx();
+    if (!ctx) return;
+    
+    this._isPlaying = true;
+    var track = this._tracks[this._currentTrack];
+    var self = this;
+    
+    function playNote(freq, startTime, duration) {
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      var vol = (self.volume / 100) * 0.15;
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(vol, startTime + 0.1);
+      gain.gain.linearRampToValueAtTime(0, startTime + duration);
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    }
+    
+    function playTrack() {
+      if (!self._isPlaying || !self.enabled) return;
+      var now = ctx.currentTime;
+      var noteLen = 0.8;
+      track.freqs.forEach(function(freq, i) {
+        playNote(freq, now + i * noteLen, noteLen * 0.9);
+      });
+      // Schedule next loop
+      self._loopInterval = setTimeout(playTrack, track.freqs.length * noteLen * 1000);
+    }
+    
+    playTrack();
+  },
+  
+  stop: function() {
+    this._isPlaying = false;
+    if (this._loopInterval) {
+      clearTimeout(this._loopInterval);
+      this._loopInterval = null;
+    }
+  },
+  
+  toggle: function() {
+    if (this._isPlaying) {
+      this.stop();
+    } else {
+      this.play();
+    }
+    this.enabled = this._isPlaying;
+    Storage.updateSettings({ music: this.enabled });
+    return this.enabled;
+  },
+  
+  setVolume: function(vol) {
+    this.volume = Math.max(0, Math.min(100, vol));
+    Storage.updateSettings({ musicVolume: this.volume });
+  },
+  
+  nextTrack: function() {
+    this._currentTrack = (this._currentTrack + 1) % this._tracks.length;
+    if (this._isPlaying) {
+      this.stop();
+      this.play();
+    }
+    return this._tracks[this._currentTrack].name;
+  },
+  
+  getTrackName: function() {
+    return this._tracks[this._currentTrack].name;
+  }
 };
+
+;
 
 // ==================== 全局变量 ====================
 var currentLevel = 0;
@@ -3098,6 +3208,11 @@ finishLevel = function() {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+  // v81: Initialize music system
+  Music.init();
+  var settings = Storage.getSettings();
+  document.getElementById('music-toggle').textContent = settings.music ? '音乐：开' : '音乐：关';
+  document.getElementById('music-volume').value = settings.musicVolume || 50;
   Storage.init();
   Sound.init();
   applySavedTheme();
@@ -3241,4 +3356,19 @@ function drawStatsChart(data) {
     ctx.font = '10px sans-serif';
     ctx.fillText(dayLabels[labelI], x + barWidth / 2, h - 4);
   }
+}
+
+// v81: Music control functions
+function toggleMusic() {
+  var enabled = Music.toggle();
+  document.getElementById('music-toggle').textContent = enabled ? '音乐：开' : '音乐：关';
+}
+
+function setMusicVolume(vol) {
+  Music.setVolume(parseInt(vol));
+}
+
+function nextTrack() {
+  var name = Music.nextTrack();
+  document.getElementById('track-name').textContent = '曲目：' + name;
 }
