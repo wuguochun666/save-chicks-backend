@@ -18,6 +18,7 @@ const Storage = {
     CHICK_STATES: 'sc_chick_states',        // v36 小鸡花园2.0
     VOCAB_REVIEW: 'sc_vocab_review',          // v37 词汇复习进度
     ACHIEVEMENTS: 'sc_achievements',            // v37 成就系统
+    QUIZ_STREAK: 'sc_quiz_streak',                 // v86 quiz streak counter
     CLICKED_WORDS: 'sc_clicked_words',          // v43 点击单词记录
     READING_QUIZ_HISTORY: 'sc_reading_quiz_history',  // v44 阅读理解闯关答题记录
     VOCAB_BOOK: 'sc_vocab_book',                     // v47 生词本
@@ -332,7 +333,18 @@ const Storage = {
     { id: 'streak_3', name: '连续打卡3天', desc: '连续登录3天', icon: '🔥' },
     { id: 'streak_7', name: '一周不懈', desc: '连续登录7天', icon: '🔥' },
     { id: 'coins_100', name: '小有积蓄', desc: '累计获得100金币', icon: '💰' },
-    { id: 'coins_500', name: '金库满满', desc: '累计获得500金币', icon: '💎' }
+    { id: 'coins_500', name: '金库满满', desc: '累计获得500金币', icon: '💎' },
+    { id: 'articles_read_5', name: '阅读新手', desc: '累计阅读5篇文章', icon: '📰' },
+    { id: 'articles_read_20', name: '阅读达人', desc: '累计阅读20篇文章', icon: '📑' },
+    { id: 'articles_read_50', name: '阅读大师', desc: '累计阅读50篇文章', icon: '📚' },
+    { id: 'streak_30', name: '月度坚持', desc: '连续打卡30天', icon: '🔥' },
+    { id: 'streak_100', name: '百日战士', desc: '连续打卡100天', icon: '💪' },
+    { id: 'vocab_50', name: '词汇积累者', desc: '词汇本收集50个词', icon: '📝' },
+    { id: 'vocab_200', name: '词汇专家', desc: '词汇本收集200个词', icon: '🖊️' },
+    { id: 'vocab_500', name: '词汇王者', desc: '词汇本收集500个词', icon: '👑' },
+    { id: 'quiz_streak_10', name: '答题新星', desc: '连续答对10题', icon: '🎯' },
+    { id: 'quiz_streak_30', name: '答题高手', desc: '连续答对30题', icon: '🎯' },
+    { id: 'quiz_streak_50', name: '答题王者', desc: '连续答对50题', icon: '🏅' }
   ],
   getAchievements() {
     return this.get(this.KEYS.ACHIEVEMENTS) || {};
@@ -379,7 +391,18 @@ const Storage = {
       { id: 'streak_3', cond: (daily.streak || 0) >= 3 },
       { id: 'streak_7', cond: (daily.streak || 0) >= 7 },
       { id: 'coins_100', cond: coins >= 100 },
-      { id: 'coins_500', cond: coins >= 500 }
+      { id: 'coins_500', cond: coins >= 500 },
+      { id: 'articles_read_5', cond: (self.getArticlesRead() || 0) >= 5 },
+      { id: 'articles_read_20', cond: (self.getArticlesRead() || 0) >= 20 },
+      { id: 'articles_read_50', cond: (self.getArticlesRead() || 0) >= 50 },
+      { id: 'streak_30', cond: (daily.streak || 0) >= 30 },
+      { id: 'streak_100', cond: (daily.streak || 0) >= 100 },
+      { id: 'vocab_50', cond: vocabCount >= 50 },
+      { id: 'vocab_200', cond: vocabCount >= 200 },
+      { id: 'vocab_500', cond: vocabCount >= 500 },
+      { id: 'quiz_streak_10', cond: (self.getQuizStreak() || 0) >= 10 },
+      { id: 'quiz_streak_30', cond: (self.getQuizStreak() || 0) >= 30 },
+      { id: 'quiz_streak_50', cond: (self.getQuizStreak() || 0) >= 50 }
     ];
 
     checks.forEach(function(c) {
@@ -390,6 +413,28 @@ const Storage = {
     });
 
     return newlyUnlocked;
+  },
+  
+  // v86: getArticlesRead - count passed articles
+  getArticlesRead: function() {
+    var prog = this.get(this.KEYS.PROGRESS) || [];
+    return prog.filter(function(p) { return p && p.passed; }).length;
+  },
+  
+  // v86: Quiz streak tracking
+  getQuizStreak: function() {
+    return this.get(this.KEYS.QUIZ_STREAK) || 0;
+  },
+  setQuizStreak: function(val) {
+    this.set(this.KEYS.QUIZ_STREAK, val);
+  },
+  resetQuizStreak: function() {
+    this.set(this.KEYS.QUIZ_STREAK, 0);
+  },
+  incrementQuizStreak: function() {
+    var current = this.getQuizStreak();
+    this.setQuizStreak(current + 1);
+    return current + 1;
   }
 };
 
