@@ -685,6 +685,20 @@ body.dark .article-card:hover { box-shadow:0 4px 16px rgba(102,126,234,0.2); }
 body.dark .article-card .art-title { color:#eee; }
 body.dark .recommend-title { color:#eee; }
 
+
+/* v81: Music Settings */
+.settings-slider {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+}
+.settings-slider input[type="range"] {
+  accent-color: #4CAF50;
+}
+body.dark .settings-slider input[type="range"] {
+  accent-color: #81C784;
+}
 </style>
 </head>
 <body>
@@ -847,6 +861,17 @@ body.dark .recommend-title { color:#eee; }
       </div>
       <div class="settings-item" onclick="toggleSound()">
         <span id="sound-toggle">音效：开</span>
+      </div>
+      <div class="settings-item" onclick="toggleMusic()">
+        <span id="music-toggle">音乐：关</span>
+      </div>
+      <div class="settings-item settings-slider">
+        <span>音乐音量</span>
+        <input type="range" id="music-volume" min="0" max="100" value="50" oninput="setMusicVolume(this.value)" style="width: 120px;">
+      </div>
+      <div class="settings-item" onclick="nextTrack()">
+        <span id="track-name">曲目：Piano Dreams</span>
+      </div>
         <span>切换 →</span>
       </div>
       <div class="settings-item" onclick="toggleTheme()">
