@@ -3589,3 +3589,323 @@ function finishBattle(correctCount, timeUsed) {
   html += '</div>';
   document.getElementById('battle-content').innerHTML = html;
 }
+
+// ==================== v92 学习报告 PDF 导出 ====================
+function showPdfReport() {
+  showScreen('pdf-report');
+  var container = document.getElementById('pdf-report-content');
+  if (!container) return;
+  container.innerHTML = '<div class="pdf-loading"><div class="spinner"></div><br>正在生成学习报告...</div>';
+  
+  // Collect data
+  var stats = Storage.getLearningStats();
+  var achievements = Storage.getAchievements();
+  var achDefs = Storage.ACHIEVEMENT_DEFS;
+  var vocabBook = Storage.getVocabBook();
+  var masteredCount = vocabBook.filter(function(w) { return w.mastered; }).length;
+  var streak = Storage.getStreakData();
+  var progress = Storage.get(Storage.KEYS.PROGRESS) || [];
+  var goal = Storage.getDailyGoal();
+  var todayProg = Storage.getTodayProgress();
+  var dailyReward = Storage.getDailyRewardStatus();
+  var wrongAnswers = Storage.getWrongAnswers();
+  var userName = Storage.getName() || '学习者';
+  var totalStars = stats.totalStars || 0;
+  var chicksSaved = Storage.getChicksSaved();
+  var totalQuestions = 0;
+  var totalCorrect = 0;
+  
+  // Calculate total questions answered
+  progress.forEach(function(p) {
+    if (p && p.passed) {
+      totalQuestions += 5; // approx 5 questions per level
+      totalCorrect += Math.round(5 * (p.stars || 0) / 3);
+    }
+  });
+  var accuracy = totalQuestions > 0 ? Math.round(totalCorrect / totalQuestions * 100) : 0;
+  
+  // Build preview HTML
+  var html = '<div class="pdf-report-preview">';
+  
+  // Title
+  html += '<div style="text-align:center;margin-bottom:16px;">';
+  html += '<h2 style="color:#4a3728;">🐤 拯救小鸡 - 学习报告</h2>';
+  html += '<p style="color:#888;font-size:0.85em;">' + userName + ' | ' + new Date().toLocaleDateString('zh-CN') + '</p>';
+  html += '</div>';
+  
+  // Section 1: Overview stats
+  html += '<h3>📊 学习概览</h3>';
+  html += '<div class="pdf-stat-grid">';
+  html += '<div class="pdf-stat-item"><div class="label">学习天数</div><div class="value">' + (dailyReward.totalDays || 0) + '</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">总答题数</div><div class="value">' + totalQuestions + '</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">正确率</div><div class="value">' + accuracy + '%</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">累计星星</div><div class="value">⭐' + totalStars + '</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">已救小鸡</div><div class="value">🐤' + chicksSaved + '/10</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">段位</div><div class="value">' + (stats.rank || 'Lv.1') + '</div></div>';
+  html += '</div>';
+  
+  // Section 2: Achievements
+  html += '<h3>🏆 成就列表</h3>';
+  var unlockedCount = 0;
+  achDefs.forEach(function(def) {
+    var unlocked = achievements[def.id];
+    if (unlocked) {
+      unlockedCount++;
+      var date = new Date(unlocked.unlockedAt).toLocaleDateString('zh-CN');
+      html += '<div class="pdf-ach-item">';
+      html += '<span class="ach-icon">' + def.icon + '</span>';
+      html += '<span class="ach-name">' + def.name + '</span>';
+      html += '<span class="ach-time">' + date + '</span>';
+      html += '</div>';
+    }
+  });
+  if (unlockedCount === 0) {
+    html += '<p style="color:#888;font-size:0.85em;text-align:center;padding:10px;">暂无解锁成就</p>';
+  } else {
+    html += '<p style="color:#888;font-size:0.8em;text-align:right;">已解锁 ' + unlockedCount + '/' + achDefs.length + '</p>';
+  }
+  
+  // Section 3: Vocabulary stats
+  html += '<h3>📖 词汇统计</h3>';
+  html += '<div class="pdf-stat-grid">';
+  html += '<div class="pdf-stat-item"><div class="label">生词本单词</div><div class="value">' + vocabBook.length + '</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">已掌握</div><div class="value">' + masteredCount + '</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">未掌握</div><div class="value">' + (vocabBook.length - masteredCount) + '</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">掌握率</div><div class="value">' + (vocabBook.length > 0 ? Math.round(masteredCount / vocabBook.length * 100) : 0) + '%</div></div>';
+  html += '</div>';
+  
+  // Section 4: Check-in records
+  html += '<h3>🔥 打卡记录</h3>';
+  html += '<div class="pdf-stat-grid">';
+  html += '<div class="pdf-stat-item"><div class="label">连续打卡</div><div class="value">' + (streak.currentStreak || 0) + '天</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">最长连续</div><div class="value">' + (streak.maxStreak || 0) + '天</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">今日阅读</div><div class="value">' + (todayProg.articles || 0) + '/' + (goal.articles || 3) + '</div></div>';
+  html += '<div class="pdf-stat-item"><div class="label">今日单词</div><div class="value">' + (todayProg.words || 0) + '/' + (goal.words || 10) + '</div></div>';
+  html += '</div>';
+  
+  // Section 5: Level progress (first 30)
+  html += '<h3>🗺️ 关卡进度</h3>';
+  for (var i = 0; i < Math.min(30, progress.length); i++) {
+    var p = progress[i];
+    if (!p) continue;
+    var stars = '';
+    for (var s = 0; s < 3; s++) {
+      stars += s < (p.stars || 0) ? '⭐' : '☆';
+    }
+    var status = p.passed ? '✅' : '🔒';
+    html += '<div class="pdf-level-row">';
+    html += '<span>' + status + '</span>';
+    html += '<span class="level-name">第' + (i + 1) + '关</span>';
+    html += '<span>' + stars + '</span>';
+    html += '</div>';
+  }
+  
+  html += '</div>'; // close pdf-report-preview
+  
+  // Export button
+  html += '<button class="pdf-export-btn" onclick="exportPdfReport()">📥 导出 PDF 报告</button>';
+  html += '<p style="text-align:center;color:#aaa;font-size:0.75em;margin:10px 0 30px;">PDF 报告将自动下载到设备</p>';
+  
+  container.innerHTML = html;
+}
+
+function exportPdfReport() {
+  try {
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF('p', 'mm', 'a4');
+    
+    // Collect data
+    var stats = Storage.getLearningStats();
+    var achievements = Storage.getAchievements();
+    var achDefs = Storage.ACHIEVEMENT_DEFS;
+    var vocabBook = Storage.getVocabBook();
+    var masteredCount = vocabBook.filter(function(w) { return w.mastered; }).length;
+    var streak = Storage.getStreakData();
+    var progress = Storage.get(Storage.KEYS.PROGRESS) || [];
+    var dailyReward = Storage.getDailyRewardStatus();
+    var goal = Storage.getDailyGoal();
+    var todayProg = Storage.getTodayProgress();
+    var userName = Storage.getName() || 'Learner';
+    var totalStars = stats.totalStars || 0;
+    var chicksSaved = Storage.getChicksSaved();
+    var totalQuestions = 0;
+    var totalCorrect = 0;
+    progress.forEach(function(p) {
+      if (p && p.passed) {
+        totalQuestions += 5;
+        totalCorrect += Math.round(5 * (p.stars || 0) / 3);
+      }
+    });
+    var accuracy = totalQuestions > 0 ? Math.round(totalCorrect / totalQuestions * 100) : 0;
+    
+    var pageW = 210;
+    var margin = 15;
+    var contentW = pageW - margin * 2;
+    var y = 20;
+    
+    // Helper: add text with auto page break
+    function addText(text, x, fontSize, style) {
+      doc.setFontSize(fontSize || 12);
+      if (style === 'bold') {
+        doc.setFont('helvetica', 'bold');
+      } else {
+        doc.setFont('helvetica', 'normal');
+      }
+      doc.text(text, x, y);
+    }
+    
+    function checkPage(needed) {
+      if (y + needed > 280) {
+        doc.addPage();
+        y = 20;
+      }
+    }
+    
+    // Title
+    doc.setFillColor(74, 55, 40);
+    doc.rect(0, 0, 210, 45, 'F');
+    doc.setTextColor(255, 255, 255);
+    addText('Save The Chicks - Learning Report', margin, 20, 'bold');
+    y += 8;
+    addText(userName + '  |  ' + new Date().toLocaleDateString('en-CA'), margin, 11);
+    y += 20;
+    
+    // Section 1: Overview
+    doc.setTextColor(74, 55, 40);
+    addText('1. Learning Overview', margin, 14, 'bold');
+    y += 8;
+    doc.setTextColor(80, 80, 80);
+    var overviewItems = [
+      ['Total Days', '' + (dailyReward.totalDays || 0)],
+      ['Total Questions', '' + totalQuestions],
+      ['Accuracy', accuracy + '%'],
+      ['Total Stars', '' + totalStars],
+      ['Chicks Saved', chicksSaved + '/10'],
+      ['Rank', stats.rank || 'Lv.1'],
+      ['Coins', '' + (Storage.getCoins() || 0)]
+    ];
+    overviewItems.forEach(function(item) {
+      checkPage(8);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(item[0] + ':', margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(item[1], margin + 50, y);
+      y += 7;
+    });
+    y += 5;
+    
+    // Section 2: Achievements
+    checkPage(15);
+    doc.setTextColor(74, 55, 40);
+    addText('2. Achievements', margin, 14, 'bold');
+    y += 8;
+    doc.setTextColor(80, 80, 80);
+    var unlockedCount = 0;
+    achDefs.forEach(function(def) {
+      var unlocked = achievements[def.id];
+      if (unlocked) {
+        unlockedCount++;
+        checkPage(8);
+        var date = new Date(unlocked.unlockedAt).toLocaleDateString('en-CA');
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(def.icon + ' ' + def.name, margin, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(def.desc + '  (' + date + ')', margin + 55, y);
+        y += 6;
+      }
+    });
+    if (unlockedCount === 0) {
+      doc.setFontSize(10);
+      doc.text('No achievements unlocked yet.', margin, y);
+      y += 7;
+    }
+    doc.setFontSize(9);
+    doc.text('Unlocked: ' + unlockedCount + '/' + achDefs.length, margin, y);
+    y += 10;
+    
+    // Section 3: Vocabulary
+    checkPage(20);
+    doc.setTextColor(74, 55, 40);
+    addText('3. Vocabulary Stats', margin, 14, 'bold');
+    y += 8;
+    doc.setTextColor(80, 80, 80);
+    var vocabItems = [
+      ['Total Words', '' + vocabBook.length],
+      ['Mastered', '' + masteredCount],
+      ['Learning', '' + (vocabBook.length - masteredCount)],
+      ['Mastery Rate', (vocabBook.length > 0 ? Math.round(masteredCount / vocabBook.length * 100) : 0) + '%']
+    ];
+    vocabItems.forEach(function(item) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(item[0] + ':', margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(item[1], margin + 50, y);
+      y += 7;
+    });
+    y += 5;
+    
+    // Section 4: Streak & Check-in
+    checkPage(20);
+    doc.setTextColor(74, 55, 40);
+    addText('4. Streak & Check-in', margin, 14, 'bold');
+    y += 8;
+    doc.setTextColor(80, 80, 80);
+    var streakItems = [
+      ['Current Streak', (streak.currentStreak || 0) + ' days'],
+      ['Max Streak', (streak.maxStreak || 0) + ' days'],
+      ['Daily Goal', (goal.articles || 3) + ' articles / ' + (goal.words || 10) + ' words'],
+      ['Today Progress', (todayProg.articles || 0) + ' articles / ' + (todayProg.words || 0) + ' words']
+    ];
+    streakItems.forEach(function(item) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(item[0] + ':', margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(item[1], margin + 55, y);
+      y += 7;
+    });
+    y += 5;
+    
+    // Section 5: Level Progress
+    checkPage(15);
+    doc.setTextColor(74, 55, 40);
+    addText('5. Level Progress', margin, 14, 'bold');
+    y += 8;
+    doc.setTextColor(80, 80, 80);
+    for (var i = 0; i < Math.min(30, progress.length); i++) {
+      var p = progress[i];
+      if (!p) continue;
+      checkPage(7);
+      var starStr = '';
+      for (var s = 0; s < (p.stars || 0); s++) starStr += '*';
+      for (var s2 = (p.stars || 0); s2 < 3; s2++) starStr += '-';
+      var statusStr = p.passed ? '[P]' : '[L]';
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Lv.' + (i + 1) + '  ' + statusStr + '  ' + starStr + '  Score:' + (p.score || 0), margin, y);
+      y += 5;
+    }
+    
+    // Footer
+    checkPage(15);
+    y += 10;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, pageW - margin, y);
+    y += 8;
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Generated by Save The Chicks App on ' + new Date().toISOString(), margin, y);
+    
+    // Save
+    var filename = 'SaveTheChicks_Report_' + new Date().toISOString().split('T')[0] + '.pdf';
+    doc.save(filename);
+    
+    showToast('PDF report exported: ' + filename);
+  } catch(e) {
+    console.error('PDF export error:', e);
+    showToast('PDF export failed, please check jsPDF library is loaded');
+  }
+}
