@@ -827,6 +827,8 @@ function renderQuestion() {
   }
 
   document.getElementById('quiz-content').innerHTML = html;
+  updateQuizProgress();
+  animateNewDot(); // v51 highlight current dot
 
   // 绑定答题事件(innerHTML 不会执行 <script>,改用 eval)
   if (qType === 'choice' || qType === 'truefalse') {
@@ -997,6 +999,7 @@ function selectAnswer(userInput) {
   }
 
   answers.push(correct);
+  updateQuizProgress(); // v51 update progress after each answer
   selectedAnswers.push(userInput);
   Sound.play(correct ? 'win' : 'fail');
 
@@ -1158,6 +1161,7 @@ function finishLevel() {
 
 function showLevelResult(score, stars, passed, rescuedChick, chickIdx, coinsEarned) {
   showScreen('level-result');
+  startCelebration(passed, score); // v51 celebration effects
   document.getElementById('result-stars').innerHTML = passed ? '⭐'.repeat(stars) : '差一点点!💪';
   var coinsDisplay = '';
   if (passed && coinsEarned > 0) {
@@ -2859,6 +2863,120 @@ function initFlashcardSwipe() {
       }
     }
   }, { passive: true });
+}
+
+
+// ===== v51 task-008: Animations & Effects =====
+// --- Confetti / Fireworks celebration ---
+function startCelebration(passed) {
+  if (!passed) return;
+  // Create overlay canvas
+  var overlay = document.createElement('div');
+  overlay.className = 'celebration-overlay';
+  overlay.id = 'celebration-overlay';
+  var canvas = document.createElement('canvas');
+  canvas.className = 'celebration-canvas';
+  canvas.id = 'celebration-canvas';
+  overlay.appendChild(canvas);
+  document.body.appendChild(overlay);
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  var ctx = canvas.getContext('2d');
+  // Create particles
+  var particles = [];
+  var colors = ['#FFD700','#FF6B6B','#667eea','#764ba2','#38ef7d','#f093fb','#00d2ff','#ff9a9e'];
+  for (var i = 0; i < 150; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height,
+      vx: (Math.random() - 0.5) * 6,
+      vy: Math.random() * 3 + 2,
+      size: Math.random() * 8 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 10,
+      shape: Math.random() > 0.5 ? 'rect' : 'circle',
+      opacity: 1
+    });
+  }
+  var startTime = Date.now();
+  var duration = 3000;
+  function animate() {
+    var elapsed = Date.now() - startTime;
+    if (elapsed > duration) {
+      var el = document.getElementById('celebration-overlay');
+      if (el) el.remove();
+      var txt = document.getElementById('level-up-text');
+      if (txt) txt.remove();
+      return;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var fadeStart = duration * 0.7;
+    particles.forEach(function(p) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05;
+      p.rotation += p.rotationSpeed;
+      if (elapsed > fadeStart) {
+        p.opacity = Math.max(0, 1 - (elapsed - fadeStart) / (duration - fadeStart));
+      }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation * Math.PI / 180);
+      ctx.globalAlpha = p.opacity;
+      ctx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    });
+    requestAnimationFrame(animate);
+  }
+  animate();
+  // Show level-up text
+  var textEl = document.createElement('div');
+  textEl.className = 'level-up-text';
+  textEl.id = 'level-up-text';
+  var score = arguments[0] || 0;
+  var mainText = score >= 100 ? 'Perfect!' : (score >= 80 ? 'Great!' : 'Level Up!');
+  textEl.innerHTML = '<div class="main-text">' + mainText + '</div><div class="sub-text">' + (score >= 100 ? '满分通关!' : (score >= 80 ? '太棒了!' : '恭喜过关!')) + '</div>';
+  document.body.appendChild(textEl);
+  setTimeout(function() {
+    var t = document.getElementById('level-up-text');
+    if (t) t.remove();
+  }, 3000);
+}
+function updateQuizProgress() {
+  var story = STORIES[currentLevel];
+  if (!story) return;
+  var total = story.questions.length;
+  var current = currentQuestionIndex + 1;
+  var pct = Math.round((current / total) * 100);
+  var bar = document.getElementById('reading-progress-bar');
+  if (bar) {
+    bar.style.width = pct + '%';
+    if (current >= total) bar.classList.add('completed');
+    else bar.classList.remove('completed');
+  }
+  // Update quiz dots with correct/wrong indicators
+  for (var i = 0; i < answers.length; i++) {
+    var dots = document.querySelectorAll('.quiz-dot');
+    if (dots[i]) {
+      dots[i].classList.remove('correct-dot', 'wrong-dot');
+      if (answers[i]) dots[i].classList.add('correct-dot');
+      else dots[i].classList.add('wrong-dot');
+    }
+  }
+}
+function animateNewDot() {
+  var dots = document.querySelectorAll('.quiz-dot');
+  if (dots[currentQuestionIndex]) {
+    dots[currentQuestionIndex].classList.add('current');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
