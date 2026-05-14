@@ -19,6 +19,9 @@ const Storage = {
     VOCAB_REVIEW: 'sc_vocab_review',          // v37 词汇复习进度
     ACHIEVEMENTS: 'sc_achievements',            // v37 成就系统
     QUIZ_STREAK: 'sc_quiz_streak',                 // v86 quiz streak counter
+    FRIENDS: 'sc_friends',                         // v89 好友列表
+    FRIEND_REQUESTS: 'sc_friend_requests',         // v89 好友申请
+    BATTLES: 'sc_battles',                         // v89 对战记录
     CLICKED_WORDS: 'sc_clicked_words',          // v43 点击单词记录
     READING_QUIZ_HISTORY: 'sc_reading_quiz_history',  // v44 阅读理解闯关答题记录
     VOCAB_BOOK: 'sc_vocab_book',                     // v47 生词本
@@ -721,4 +724,141 @@ const Storage = {
     }
   }
 
+}
+// ============== v89 好友系统 ==============
+(function() {
+  // 获取好友列表
+  Storage.getFriends = function() {
+    return Storage.get(Storage.KEYS.FRIENDS) || [];
+  };
+  
+  // 添加好友
+  Storage.addFriend = function(friend) {
+    var friends = Storage.getFriends();
+    var exists = friends.some(function(f) { return f.id === friend.id; });
+    if (!exists) {
+      friends.push({
+        id: friend.id,
+        name: friend.name,
+        addedAt: Date.now(),
+        stars: friend.stars || 0
+      });
+      Storage.set(Storage.KEYS.FRIENDS, friends);
+    }
+    return !exists;
+  };
+  
+  // 移除好友
+  Storage.removeFriend = function(friendId) {
+    var friends = Storage.getFriends();
+    friends = friends.filter(function(f) { return f.id !== friendId; });
+    Storage.set(Storage.KEYS.FRIENDS, friends);
+  };
+  
+  // 获取好友申请
+  Storage.getFriendRequests = function() {
+    return Storage.get(Storage.KEYS.FRIEND_REQUESTS) || [];
+  };
+  
+  // 添加好友申请
+  Storage.addFriendRequest = function(request) {
+    var requests = Storage.getFriendRequests();
+    var exists = requests.some(function(r) { return r.fromId === request.fromId; });
+    if (!exists) {
+      requests.push({
+        fromId: request.fromId,
+        fromName: request.fromName,
+        fromStars: request.fromStars || 0,
+        requestedAt: Date.now()
+      });
+      Storage.set(Storage.KEYS.FRIEND_REQUESTS, requests);
+    }
+    return !exists;
+  };
+  
+  // 接受好友申请
+  Storage.acceptFriendRequest = function(fromId, fromName, fromStars) {
+    Storage.addFriend({ id: fromId, name: fromName, stars: fromStars || 0 });
+    var requests = Storage.getFriendRequests();
+    requests = requests.filter(function(r) { return r.fromId !== fromId; });
+    Storage.set(Storage.KEYS.FRIEND_REQUESTS, requests);
+  };
+  
+  // 拒绝好友申请
+  Storage.rejectFriendRequest = function(fromId) {
+    var requests = Storage.getFriendRequests();
+    requests = requests.filter(function(r) { return r.fromId !== fromId; });
+    Storage.set(Storage.KEYS.FRIEND_REQUESTS, requests);
+  };
+  
+  // 搜索用户（模拟）
+  Storage.searchUsers = function(keyword) {
+    // 模拟用户数据库
+    var mockUsers = [
+      { id: 'user_001', name: '小明', stars: 45 },
+      { id: 'user_002', name: '小红', stars: 38 },
+      { id: 'user_003', name: '小刚', stars: 52 },
+      { id: 'user_004', name: '小美', stars: 30 },
+      { id: 'user_005', name: '小华', stars: 65 },
+      { id: 'user_006', name: '小丽', stars: 42 },
+      { id: 'user_007', name: '小龙', stars: 78 },
+      { id: 'user_008', name: '小燕', stars: 55 }
+    ];
+    if (!keyword) return mockUsers.slice(0, 5);
+    keyword = keyword.toLowerCase();
+    return mockUsers.filter(function(u) {
+      return u.name.toLowerCase().indexOf(keyword) >= 0 || u.id.toLowerCase().indexOf(keyword) >= 0;
+    });
+  };
+  
+  // 获取对战记录
+  Storage.getBattles = function() {
+    return Storage.get(Storage.KEYS.BATTLES) || [];
+  };
+  
+  // 保存对战结果
+  Storage.saveBattle = function(battle) {
+    var battles = Storage.getBattles();
+    battles.unshift(battle);
+    if (battles.length > 50) battles = battles.slice(0, 50);
+    Storage.set(Storage.KEYS.BATTLES, battles);
+  };
+  
+  // 生成好友排行榜
+  Storage.getFriendsLeaderboard = function() {
+    var friends = Storage.getFriends();
+    var myStars = 0;
+    var prog = Storage.get(Storage.KEYS.PROGRESS) || [];
+    prog.forEach(function(p) { if (p) myStars += (p.stars || 0); });
+    
+    var leaderboard = friends.map(function(f) {
+      return { id: f.id, name: f.name, stars: f.stars || 0 };
+    });
+    leaderboard.push({ id: 'me', name: '我', stars: myStars, isMe: true });
+    leaderboard.sort(function(a, b) { return b.stars - a.stars; });
+    return leaderboard;
+  };
+  
+  // 生成全国排行榜（模拟）
+  Storage.getNationalLeaderboard = function() {
+    var users = [
+      { id: 'nat_001', name: '英语达人', stars: 95 },
+      { id: 'nat_002', name: '学习之星', stars: 88 },
+      { id: 'nat_003', name: '词汇王者', stars: 82 },
+      { id: 'nat_004', name: '阅读高手', stars: 76 },
+      { id: 'nat_005', name: '打卡达人', stars: 70 },
+      { id: 'nat_006', name: '语法大师', stars: 65 },
+      { id: 'nat_007', name: '小鸡救星', stars: 60 },
+      { id: 'nat_008', name: '单词收藏家', stars: 55 },
+      { id: 'nat_009', name: '英语爱好者', stars: 50 },
+      { id: 'nat_010', name: '新手玩家', stars: 45 }
+    ];
+    var myStars = 0;
+    var prog = Storage.get(Storage.KEYS.PROGRESS) || [];
+    prog.forEach(function(p) { if (p) myStars += (p.stars || 0); });
+    users.push({ id: 'me', name: '我', stars: myStars, isMe: true });
+    users.sort(function(a, b) { return b.stars - a.stars; });
+    return users;
+  };
 })();
+)();
