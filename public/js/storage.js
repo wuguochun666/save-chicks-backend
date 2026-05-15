@@ -1,4 +1,5 @@
-const Storage = {
+window.Storage = undefined;
+var Storage = {
   KEYS: {
     CHICKS: 'sc_chicks',
     PROGRESS: 'sc_progress',
@@ -22,12 +23,24 @@ const Storage = {
     FRIENDS: 'sc_friends',                         // v89 好友列表
     FRIEND_REQUESTS: 'sc_friend_requests',         // v89 好友申请
     BATTLES: 'sc_battles',                         // v89 对战记录
+    INTERACTIONS: 'sc_interactions',               // v95 好友互动历史
+    SENT_STAMINA: 'sc_sent_stamina',               // v95 今日赠送体力记录
+    SENT_COINS: 'sc_sent_coins',                   // v95 今日赠送金币记录
+    FRIEND_LIKES: 'sc_friend_likes',              // v95 好友点赞记录
     CLICKED_WORDS: 'sc_clicked_words',          // v43 点击单词记录
     READING_QUIZ_HISTORY: 'sc_reading_quiz_history',  // v44 阅读理解闯关答题记录
     VOCAB_BOOK: 'sc_vocab_book',                     // v47 生词本
     DAILY_GOAL: 'sc_daily_goal',                       // v50 每日学习目标
     DAILY_PROGRESS: 'sc_daily_progress',               // v50 当日学习进度
-    STREAK_DATA: 'sc_streak_data'                      // v50 连续打卡数据                     // v47 生词本
+    STREAK_DATA: 'sc_streak_data',                      // v50 连续打卡数据
+    PARENTAL_PASSWORD: 'sc_parental_password',
+    PARENTAL_DAILY_LIMIT: 'sc_parental_daily_limit',
+    PARENTAL_USAGE_LOG: 'sc_parental_usage_log',
+    PARENTAL_BREAK_COUNT: 'sc_parental_break_count',
+    PARENTAL_BLOCKED_LEVELS: 'sc_parental_blocked_levels',
+    PARENTAL_SESSION_START: 'sc_parental_session_start',
+    PARENTAL_TOTAL_TODAY: 'sc_parental_total_today',
+    PARENTAL_LAST_DATE: 'sc_parental_last_date'
   },
   init() {
     if (!this.get(this.KEYS.CHICKS)) {
@@ -585,13 +598,13 @@ const Storage = {
       quizAccuracyLast7Days: last7Days
     };
   };
+})();
 
-
-  // v47 生词本
-  getVocabBook() {
+// v47 生词本
+  Storage.getVocabBook = function() {
     return this.get(this.KEYS.VOCAB_BOOK) || [];
   },
-  addToVocabBook(word, meaning, sentence, levelIndex, articleTitle) {
+  Storage.addToVocabBook = function(word, meaning, sentence, levelIndex, articleTitle) {
     var book = this.getVocabBook();
     if (book.some(function(w) { return w.word === word; })) return false;
     book.unshift({
@@ -606,24 +619,24 @@ const Storage = {
     this.set(this.KEYS.VOCAB_BOOK, book);
     return true;
   },
-  isInVocabBook(word) {
+  Storage.isInVocabBook = function(word) {
     var book = this.getVocabBook();
     return book.some(function(w) { return w.word === word; });
   },
-  removeFromVocabBook(word) {
+  Storage.removeFromVocabBook = function(word) {
     var book = this.getVocabBook();
     book = book.filter(function(w) { return w.word !== word; });
     this.set(this.KEYS.VOCAB_BOOK, book);
   },
-  toggleVocabMastered(word) {
+  Storage.toggleVocabMastered = function(word) {
     var book = this.getVocabBook();
     book.forEach(function(w) { if (w.word === word) w.mastered = !w.mastered; });
     this.set(this.KEYS.VOCAB_BOOK, book);
   },
-  getVocabBookByLevel(levelIndex) {
+  Storage.getVocabBookByLevel = function(levelIndex) {
     return this.getVocabBook().filter(function(w) { return w.levelIndex === levelIndex; });
   },
-  exportVocabBook(format) {
+  Storage.exportVocabBook = function(format) {
     var book = this.getVocabBook();
     var lines = book.map(function(w) {
       if (format === 'csv') {
@@ -632,19 +645,17 @@ const Storage = {
         return (w.mastered?'[已] ':'[ ] ') + w.word + ' ' + (w.meaning||'') + (w.sentence?' - '+w.sentence:'');
       }
     });
-    return (format==='csv'?'单词,释义,例句,文章来源,状态
-':'') + lines.join('
-');
+    return (format==='csv'?'单词,释义,例句,文章来源,状态\n':'') + lines.join('\n');
   }
 
   // ============== v50 每日学习目标与连续打卡 ==============
-  getDailyGoal() {
+  Storage.getDailyGoal = function() {
     return this.get(this.KEYS.DAILY_GOAL) || { articles: 3, words: 10 };
   },
-  setDailyGoal(articles, words) {
+  Storage.setDailyGoal = function(articles, words) {
     this.set(this.KEYS.DAILY_GOAL, { articles: articles || 3, words: words || 10 });
   },
-  getTodayProgress() {
+  Storage.getTodayProgress = function() {
     var today = new Date().toISOString().split('T')[0];
     var progress = this.get(this.KEYS.DAILY_PROGRESS);
     if (!progress || progress.date !== today) {
@@ -653,21 +664,21 @@ const Storage = {
     }
     return progress;
   },
-  recordArticleRead() {
+  Storage.recordArticleRead = function() {
     var progress = this.getTodayProgress();
     progress.articles++;
     this.set(this.KEYS.DAILY_PROGRESS, progress);
     this.checkAndUpdateStreak();
     return progress;
   },
-  recordWordLearned() {
+  Storage.recordWordLearned = function() {
     var progress = this.getTodayProgress();
     progress.words++;
     this.set(this.KEYS.DAILY_PROGRESS, progress);
     this.checkAndUpdateStreak();
     return progress;
   },
-  checkAndUpdateStreak() {
+  Storage.checkAndUpdateStreak = function() {
     var today = new Date().toISOString().split('T')[0];
     var progress = this.get(this.KEYS.DAILY_PROGRESS);
     var goal = this.getDailyGoal();
@@ -686,10 +697,10 @@ const Storage = {
       this.set(this.KEYS.STREAK_DATA, streak);
     }
   },
-  getStreakData() {
+  Storage.getStreakData = function() {
     return this.get(this.KEYS.STREAK_DATA) || { currentStreak: 0, maxStreak: 0, history: [] };
   },
-  getStreak() {
+  Storage.getStreak = function() {
     var streak = this.getStreakData();
     var today = new Date().toISOString().split('T')[0];
     var yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -702,27 +713,18 @@ const Storage = {
     }
     return streak.currentStreak;
   },
-  getMaxStreak() {
+  Storage.getMaxStreak = function() {
     return this.getStreakData().maxStreak || 0;
   },
-  getCheckinCalendar(days) {
+  Storage.getCheckinCalendar = function(days) {
     var streak = this.getStreakData();
     var history = streak.history || [];
     if (days && days > 0) {
       return history.slice(0, days);
     }
     return history;
-
-    PARENTAL_PASSWORD: 'sc_parental_password',
-    PARENTAL_DAILY_LIMIT: 'sc_parental_daily_limit',
-    PARENTAL_USAGE_LOG: 'sc_parental_usage_log',
-    PARENTAL_BREAK_COUNT: 'sc_parental_break_count',
-    PARENTAL_BLOCKED_LEVELS: 'sc_parental_blocked_levels',
-    PARENTAL_SESSION_START: 'sc_parental_session_start',
-    PARENTAL_TOTAL_TODAY: 'sc_parental_total_today',
-    PARENTAL_LAST_DATE: 'sc_parental_last_date',
-  },
-  checkMissedDays() {
+  };
+  Storage.checkMissedDays = function() {
     var today = new Date().toISOString().split('T')[0];
     var yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     var streak = this.getStreakData();
@@ -731,9 +733,133 @@ const Storage = {
       streak.currentStreak = 0;
       this.set(this.KEYS.STREAK_DATA, streak);
     }
-  }
+  };
 
-}
+// ============== v95 好友互动系统 ==============
+(function() {
+  // 获取互动历史
+  Storage.getInteractions = function() {
+    return Storage.get(Storage.KEYS.INTERACTIONS) || [];
+  };
+  
+  // 添加互动记录
+  Storage.addInteraction = function(interaction) {
+    var interactions = Storage.getInteractions();
+    interactions.unshift({
+      type: interaction.type, // 'stamina', 'coins', 'like'
+      fromId: interaction.fromId,
+      fromName: interaction.fromName,
+      toId: interaction.toId,
+      toName: interaction.toName,
+      amount: interaction.amount || 0,
+      timestamp: Date.now()
+    });
+    if (interactions.length > 100) interactions = interactions.slice(0, 100);
+    Storage.set(Storage.KEYS.INTERACTIONS, interactions);
+  };
+  
+  // 获取今日已赠送体力次数
+  Storage.getTodaySentStamina = function() {
+    var today = new Date().toISOString().split('T')[0];
+    var sent = Storage.get(Storage.KEYS.SENT_STAMINA) || {};
+    return sent[today] || {};
+  };
+  
+  // 记录赠送体力
+  Storage.recordSentStamina = function(friendId) {
+    var today = new Date().toISOString().split('T')[0];
+    var sent = Storage.get(Storage.KEYS.SENT_STAMINA) || {};
+    if (!sent[today]) sent[today] = {};
+    sent[today][friendId] = (sent[today][friendId] || 0) + 1;
+    Storage.set(Storage.KEYS.SENT_STAMINA, sent);
+  };
+  
+  // 获取今日已赠送金币总数
+  Storage.getTodaySentCoins = function() {
+    var today = new Date().toISOString().split('T')[0];
+    var sent = Storage.get(Storage.KEYS.SENT_COINS) || {};
+    return sent[today] || 0;
+  };
+  
+  // 记录赠送金币
+  Storage.recordSentCoins = function(amount) {
+    var today = new Date().toISOString().split('T')[0];
+    var sent = Storage.get(Storage.KEYS.SENT_COINS) || {};
+    sent[today] = (sent[today] || 0) + amount;
+    Storage.set(Storage.KEYS.SENT_COINS, sent);
+  };
+  
+  // 获取好友点赞记录
+  Storage.getFriendLikes = function() {
+    var today = new Date().toISOString().split('T')[0];
+    var likes = Storage.get(Storage.KEYS.FRIEND_LIKES) || {};
+    return likes[today] || [];
+  };
+  
+  // 点赞好友（每个好友每日限1次）
+  Storage.likeFriend = function(friendId) {
+    var today = new Date().toISOString().split('T')[0];
+    var likes = Storage.get(Storage.KEYS.FRIEND_LIKES) || {};
+    if (!likes[today]) likes[today] = [];
+    if (likes[today].indexOf(friendId) >= 0) return false;
+    likes[today].push(friendId);
+    Storage.set(Storage.KEYS.FRIEND_LIKES, likes);
+    Storage.addInteraction({
+      type: 'like',
+      fromId: Storage.getUserId() || 'me',
+      fromName: Storage.getName() || '我',
+      toId: friendId,
+      toName: Storage.getFriends().find(function(f) { return f.id === friendId; }).name
+    });
+    return true;
+  };
+  
+  // 赠送体力给好友（每日3次/好友）
+  Storage.sendStaminaToFriend = function(friendId) {
+    var todaySent = Storage.getTodaySentStamina();
+    if ((todaySent[friendId] || 0) >= 3) {
+      return { success: false, message: '今日赠送次数已达上限（3次）' };
+    }
+    Storage.recordSentStamina(friendId);
+    var friend = Storage.getFriends().find(function(f) { return f.id === friendId; });
+    Storage.addInteraction({
+      type: 'stamina',
+      fromId: Storage.getUserId() || 'me',
+      fromName: Storage.getName() || '我',
+      toId: friendId,
+      toName: friend ? friend.name : '未知',
+      amount: 1
+    });
+    return { success: true, message: '体力赠送成功' };
+  };
+  
+  // 赠送金币给好友（每日上限100金币）
+  Storage.sendCoinsToFriend = function(friendId, amount) {
+    if (amount <= 0 || amount > 50) {
+      return { success: false, message: '每次最多赠送50金币' };
+    }
+    var todaySent = Storage.getTodaySentCoins();
+    if (todaySent + amount > 100) {
+      return { success: false, message: '今日赠送金币已达上限（100金币）' };
+    }
+    if (Storage.getCoins() < amount) {
+      return { success: false, message: '金币不足' };
+    }
+    Storage.recordSentCoins(amount);
+    Storage.spendCoins(amount);
+    var friend = Storage.getFriends().find(function(f) { return f.id === friendId; });
+    Storage.addInteraction({
+      type: 'coins',
+      fromId: Storage.getUserId() || 'me',
+      fromName: Storage.getName() || '我',
+      toId: friendId,
+      toName: friend ? friend.name : '未知',
+      amount: amount
+    });
+    return { success: true, message: '金币赠送成功' };
+  };
+})();
+
 // ============== v89 好友系统 ==============
 (function() {
   // 获取好友列表
@@ -870,28 +996,29 @@ const Storage = {
     return users;
   };
 })();
-)();
 
-  setParentalPassword: function(pwd) {
+// ============== 家长控制 ==============
+(function() {
+  Storage.setParentalPassword = function(pwd) {
     localStorage.setItem(Storage.KEYS.PARENTAL_PASSWORD, pwd);
   },
-  getParentalPassword: function() {
+  Storage.getParentalPassword = function() {
     return localStorage.getItem(Storage.KEYS.PARENTAL_PASSWORD) || '';
   },
-  hasParentalPassword: function() {
+  Storage.hasParentalPassword = function() {
     return !!localStorage.getItem(Storage.KEYS.PARENTAL_PASSWORD);
   },
-  setParentalDailyLimit: function(minutes) {
+  Storage.setParentalDailyLimit = function(minutes) {
     localStorage.setItem(Storage.KEYS.PARENTAL_DAILY_LIMIT, minutes);
   },
-  getParentalDailyLimit: function() {
+  Storage.getParentalDailyLimit = function() {
     return parseInt(localStorage.getItem(Storage.KEYS.PARENTAL_DAILY_LIMIT)) || 60;
   },
-  getParentalUsageLog: function() {
+  Storage.getParentalUsageLog = function() {
     var log = localStorage.getItem(Storage.KEYS.PARENTAL_USAGE_LOG);
     return log ? JSON.parse(log) : [];
   },
-  addUsageEntry: function(date, minutes) {
+  Storage.addUsageEntry = function(date, minutes) {
     var log = Storage.getParentalUsageLog();
     var entry = log.find(function(e) { return e.date === date; });
     if (entry) { entry.minutes += minutes; }
@@ -899,28 +1026,28 @@ const Storage = {
     if (log.length > 30) log = log.slice(-30);
     localStorage.setItem(Storage.KEYS.PARENTAL_USAGE_LOG, JSON.stringify(log));
   },
-  getParentalBreakCount: function() {
+  Storage.getParentalBreakCount = function() {
     return parseInt(localStorage.getItem(Storage.KEYS.PARENTAL_BREAK_COUNT)) || 0;
   },
-  incrementBreakCount: function() {
+  Storage.incrementBreakCount = function() {
     var count = Storage.getParentalBreakCount() + 1;
     localStorage.setItem(Storage.KEYS.PARENTAL_BREAK_COUNT, count);
     return count;
   },
-  resetBreakCount: function() {
+  Storage.resetBreakCount = function() {
     localStorage.setItem(Storage.KEYS.PARENTAL_BREAK_COUNT, '0');
   },
-  getParentalBlockedLevels: function() {
+  Storage.getParentalBlockedLevels = function() {
     var blocked = localStorage.getItem(Storage.KEYS.PARENTAL_BLOCKED_LEVELS);
     return blocked ? JSON.parse(blocked) : [];
   },
-  setParentalBlockedLevels: function(levels) {
+  Storage.setParentalBlockedLevels = function(levels) {
     localStorage.setItem(Storage.KEYS.PARENTAL_BLOCKED_LEVELS, JSON.stringify(levels));
   },
-  isLevelBlocked: function(levelId) {
+  Storage.isLevelBlocked = function(levelId) {
     return Storage.getParentalBlockedLevels().indexOf(levelId) !== -1;
   },
-  getTodayUsageMinutes: function() {
+  Storage.getTodayUsageMinutes = function() {
     var today = new Date().toISOString().slice(0, 10);
     var lastDate = localStorage.getItem(Storage.KEYS.PARENTAL_LAST_DATE) || '';
     if (lastDate !== today) {
@@ -929,12 +1056,16 @@ const Storage = {
       return 0;
     }
     return parseInt(localStorage.getItem(Storage.KEYS.PARENTAL_TOTAL_TODAY)) || 0;
-  },
-  addTodayUsageMinutes: function(mins) {
+  };
+  Storage.addTodayUsageMinutes = function(mins) {
     var today = new Date().toISOString().slice(0, 10);
     localStorage.setItem(Storage.KEYS.PARENTAL_LAST_DATE, today);
     var current = Storage.getTodayUsageMinutes();
     var newTotal = current + mins;
     localStorage.setItem(Storage.KEYS.PARENTAL_TOTAL_TODAY, newTotal);
     return newTotal;
-  },
+  };
+})();
+
+// 确保全局可访问
+window.Storage = Storage;
